@@ -425,4 +425,6 @@ if __name__=='__main__':
         msh.generate(Params,Cl) 
 
 
-        pdb.set_trace()
+        %pdb.set_trace()
+        import svzerodsolver
+        svzerodsolver.runner.run_from_file('input.json', 'output.json')
