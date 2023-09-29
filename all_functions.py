@@ -895,6 +895,11 @@ def write_to_file(file_path, lines):
 # outlet_names = face_name_lst
 
 # lst = parse_mdl_to_list('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\sv projects\\0146_1001\\Models\\0146_1001.mdl')
+# >>> lst
+# [[1, 'wall', 'wall'], [10, 'renal_left', 'cap'], [11, 'renal_right', 'cap'], [12, 'SMA', 'cap'], 
+# [2, 'inflow', 'cap'], [3, 'celiac_hepatic', 'cap'], [4, 'celiac_splenic', 'cap'],
+# [5, 'ext_iliac_left', 'cap'], [6, 'ext_iliac_right', 'cap'], [7, 'IMA', 'cap'],
+# [8, 'int_iliac_left', 'cap'], [9, 'int_iliac_right', 'cap']]
 # lst, face_name_lst = sort_and_reorder(lst)
 # >>> face_name_lst
 # ['celiac_hepatic', 'celiac_splenic', 'ext_iliac_left', 'ext_iliac_right', 'IMA', 'int_iliac_left', 'int_iliac_right', 'renal_left', 'renal_right', 'SMA']
@@ -946,3 +951,104 @@ def write_face_pd(input_vtp_path, output_dir):
     print("Finished writing face files.")
 
 # write_face_pd('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\0146_fromVMR.vtp','C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\ROM results\\faces_for_parsing')
+import glob
+
+def compute_polydata_centroid(polydata):
+    points = polydata.GetPoints()
+    num_points = points.GetNumberOfPoints()
+    x, y, z = 0, 0, 0
+    for i in range(num_points):
+        px, py, pz = points.GetPoint(i)
+        x += px
+        y += py
+        z += pz
+    centroid = (x / num_points, y / num_points, z / num_points)
+    return centroid
+
+
+
+
+
+def match_files(dir_a, dir_b, tolerance):
+    """
+    Match files from two directories based on their centroids within a certain tolerance.
+
+    :param dir_a: path to the first directory
+    :param dir_b: path to the second directory
+    :param tolerance: tolerance for matching centroids
+    :return: list of matched polydata pairs
+    """
+
+    def get_centroids(directory):
+        centroids = {}
+        for filename in os.listdir(directory):
+            if filename.endswith('.vtp'):
+                file_path = os.path.join(directory, filename)
+                polydata = read_geo(file_path)
+                centroid = compute_polydata_centroid(polydata)
+                centroids[file_path] = centroid
+        return centroids
+
+    centroids_a = get_centroids(dir_a)
+    centroids_b = get_centroids(dir_b)
+    
+    matched_files = []
+    for path_a, centroid_a in centroids_a.items():
+        for path_b, centroid_b in centroids_b.items():
+            distance = ((centroid_a[0] - centroid_b[0])**2 +
+                        (centroid_a[1] - centroid_b[1])**2 +
+                        (centroid_a[2] - centroid_b[2])**2)**0.5
+            if distance <= tolerance:
+                matched_files.append([read_geo(path_a), read_geo(path_b)])
+                break  # Assuming one-to-one matching
+    
+    return matched_files
+
+
+
+def delete_and_rename_matched_files(pred_caps, gt_caps, input_vtp, tolerance=0.3):
+    """
+    Delete and rename matching files in the specified directories based on the centroid of an input polydata.
+
+    :param pred_caps: path to the predicted caps directory
+    :param gt_caps: path to the ground truth caps directory
+    :param input_vtp: input polydata file
+    :param tolerance: tolerance for centroid matching
+    """
+
+    def get_centroids(directory):
+        centroids = {}
+        for filename in os.listdir(directory):
+            if filename.endswith('.vtp'):
+                file_path = os.path.join(directory, filename)
+                polydata = read_geo(file_path)
+                centroid = compute_polydata_centroid(polydata)
+                centroids[file_path] = centroid
+        return centroids
+
+    # Calculate the centroid of the input polydata
+    input_polydata = read_geo(input_vtp)
+    input_centroid = compute_polydata_centroid(input_polydata)
+
+    # Calculate centroids of all .vtp files in both directories
+    centroids_pred = get_centroids(pred_caps)
+    centroids_gt = get_centroids(gt_caps)
+
+    # Find and operate on matching files
+    for path_pred, centroid_pred in centroids_pred.items():
+        for path_gt, centroid_gt in centroids_gt.items():
+            distance_pred = ((centroid_pred[0] - input_centroid[0]) ** 2 +
+                             (centroid_pred[1] - input_centroid[1]) ** 2 +
+                             (centroid_pred[2] - input_centroid[2]) ** 2) ** 0.5
+            distance_gt = ((centroid_gt[0] - input_centroid[0]) ** 2 +
+                           (centroid_gt[1] - input_centroid[1]) ** 2 +
+                           (centroid_gt[2] - input_centroid[2]) ** 2) ** 0.5
+
+            if distance_pred <= tolerance and distance_gt <= tolerance:
+                # Delete the matching file in the gt_caps directory
+                os.remove(path_gt)
+                
+                # Rename the matching file in the pred_caps directory to "inlet.vtp"
+                new_path_pred = os.path.join(pred_caps, "inlet.vtp")
+                os.rename(path_pred, new_path_pred)
+                break
