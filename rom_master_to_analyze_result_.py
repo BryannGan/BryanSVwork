@@ -462,6 +462,8 @@ def get_inflow_smooth(inflow):
         else:
             return None, None
 
+
+
 def set_path_name():
     "path to ur result folder"
     result_master_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing'
@@ -509,41 +511,34 @@ def main():
     gt_cent = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\centerlines\\0176_0000.vtp')
     inflow = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\inflow_files\\inflow_1d.flow'
     
-    
-    
-    # time_inflow, _ = get_inflow_smooth(inflow)
 
-    # result_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis'
+    def get_data_at_caps(rom_mapped_cl_path):
+        clpd = read_polydata(rom_mapped_cl_path)
+        points  = v2n(clpd.GetPoints().GetData())
+        branchid_at_pts = v2n(clpd.GetPointData().GetArray('BranchId'))
+        pressrue_at_pts = v2n(clpd.GetPointData().GetArray('pressure'))
+        flow_at_pts = v2n(clpd.GetPointData().GetArray('flow'))
 
+        cap_data = {}
+        for i in range(len(branchid_at_pts)-1):
+            if branchid_at_pts[i] != branchid_at_pts[i+1]:
+                key = 'branchID ' + str(branchid_at_pts[i])
+                cap_data[key] = ['pressure', pressrue_at_pts[i], 'flow', flow_at_pts[i]]
+        # add last point
+        key = 'branchID ' + str(branchid_at_pts[-1])
+        cap_data[key] = ['pressure', pressrue_at_pts[-1], 'flow', flow_at_pts[-1]]
     
-    
-    
+        # modify dic: get rid of key that says -1
+        cap_data.pop('branchID -1', None)
 
-    # time = {}
-    # res = defaultdict(lambda: defaultdict(dict))
-    # f_res_1d = gt_dic
-    # f_oned = gt_cent
-    
-    # collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
-    # # getT = get_time('1d', gt_dic, time,t_in=0.8)
+        # organize dictionary so that keys goes from brachid 0 to bigger
+        cap_data = OrderedDict(sorted(cap_data.items(), key=lambda t: int(t[0].split(' ')[1])))
 
-    
-    # arrays = map_rom_to_centerline('1d', gt_cent, res, time, only_last=True)
-    # f_out  = os.path.join(result_folder, '0176_0000_gt_res_mapped.vtp')
 
-    # write_results(f_out, gt_cent, arrays, only_last=True)
+        return cap_data
+            
 
-    # # our res
-    # time = {}
-    # res = defaultdict(lambda: defaultdict(dict))
-    # f_res_1d = our_res
-    # f_oned = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp')
-    # collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
-    # arrays = map_rom_to_centerline('1d', f_oned, res, time, only_last=True)
-    # f_out  = os.path.join(result_folder, '0176_0000_OUR_res_mapped.vtp')
-    # write_results(f_out, our_cent, arrays, only_last=True)
-
-    
+        
     def pipeline_mapping_last_t_step_1d_res_to_cl(res_folder,cl_path,inflow_path,output_path):
         
         # initiate parameters
@@ -559,15 +554,18 @@ def main():
         arrays = map_rom_to_centerline('1d', clpd, res, time, only_last=True)
         output_path = os.path.join(output_path, '0176_0000_OUR_GUI_ID_mapped.vtp')
         write_results(output_path, clpd, arrays, only_last=True)
-        return res_dic
+        return res_dic, output_path
+    
 
 
     out_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis'
     our_cent_path  = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp'
     res_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\1d_result_swapped_GUI_and_id'
-    res_dic = pipeline_mapping_last_t_step_1d_res_to_cl(res_folder,our_cent_path,inflow,out_folder)
-        
+    res_dic, rom_cl_path = pipeline_mapping_last_t_step_1d_res_to_cl(res_folder,our_cent_path,inflow,out_folder)
 
+    gt_rom_cl_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis\\0176_0000_gt_res_mapped.vtp'
+    data = get_data_at_caps(rom_cl_path)
+    gt_data = get_data_at_caps(gt_rom_cl_path)
     #--------------------- map 1d to 3d --------------#
     # see Oned_to_3d_projection.py
 
@@ -611,3 +609,34 @@ main()
 
 
 
+
+    # time_inflow, _ = get_inflow_smooth(inflow)
+
+    # result_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis'
+
+    # time = {}
+    # res = defaultdict(lambda: defaultdict(dict))
+    # f_res_1d = gt_dic
+    # f_oned = gt_cent
+    
+    # collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
+    # # getT = get_time('1d', gt_dic, time,t_in=0.8)
+
+    
+    # arrays = map_rom_to_centerline('1d', gt_cent, res, time, only_last=True)
+    # f_out  = os.path.join(result_folder, '0176_0000_gt_res_mapped.vtp')
+
+    # write_results(f_out, gt_cent, arrays, only_last=True)
+
+    # # our res
+    # time = {}
+    # res = defaultdict(lambda: defaultdict(dict))
+    # f_res_1d = our_res
+    # f_oned = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp')
+    # collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
+    # arrays = map_rom_to_centerline('1d', f_oned, res, time, only_last=True)
+    # f_out  = os.path.join(result_folder, '0176_0000_OUR_res_mapped.vtp')
+    # write_results(f_out, our_cent, arrays, only_last=True)
+
+    
+    
