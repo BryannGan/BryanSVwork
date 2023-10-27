@@ -1052,3 +1052,125 @@ def delete_and_rename_matched_files(pred_caps, gt_caps, input_vtp, tolerance=0.3
                 new_path_pred = os.path.join(pred_caps, "inlet.vtp")
                 os.rename(path_pred, new_path_pred)
                 break
+
+import subprocess
+def run_1d_simulation(input_file_path):
+    OneDSolver_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release\\OneDSolver.exe'
+    subprocess.check_output([OneDSolver_path, input_file_path], cwd = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release')
+    OneDSolver_folder_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release'
+    return OneDSolver_folder_path
+
+def reparse_solver_input_use_martins(gt_file, pred_file):
+    # Read the content from gt_file
+    with open(gt_file, 'r') as f_gt:
+        gt_lines = f_gt.readlines()
+        
+    for i in range(len(gt_lines)):
+        if gt_lines[i] ==  '# SOLVEROPTIONS CARD\n':
+            gt_to_paste = gt_lines[i:]
+    
+
+    # Read the content from pred_file
+    with open(pred_file, 'r') as f_pred:
+        pred_lines = f_pred.readlines()
+
+    os.remove(pred_file)
+
+    for i in range(len(pred_lines)):
+        if pred_lines[i] ==  '# SOLVEROPTIONS CARD\n':
+            pred_to_keep = pred_lines[:i]
+
+    combined_content = pred_to_keep + gt_to_paste
+    with open(pred_file, 'w') as f_pred:
+        f_pred.writelines(combined_content)
+    
+
+def save_dict_to_csv(res, output_file):
+    # Ensure the parent directory exists
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    
+    with open(output_file, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        
+        # Write header
+        writer.writerow(["Field", "Branch", "Segment", "Timestep", "Value"])
+
+        # Loop through fields
+        for field, branches in res.items():
+            if not isinstance(branches, dict):
+                continue  # We only handle dictionaries for this particular format
+            for branch, segments in branches.items():
+                for segment, values in segments.items():
+                    for timestep, value in enumerate(values):
+                        writer.writerow([field, branch, segment, timestep, value[0]])
+
+def read_results_1d(res_dir, params_file=None):
+    """
+    Read results from oneDSolver and store in dictionary
+    Args:
+        res_dir: directory containing 1D results
+        params_file: optional, path to dictionary of oneDSolver input parameters
+
+    Returns:
+    Dictionary sorted as [result field][segment id][time step]
+    """
+    # requested output fields
+    fields_res_1d = ['flow', 'pressure', 'area', 'wss', 'Re']
+
+    # read 1D simulation results
+    results_1d = {}
+
+
+    for field in fields_res_1d:
+        # list all output files for field
+        result_list_1d = glob.glob(os.path.join(res_dir, '*branch*seg*_' + field + '.dat'))
+
+        # loop segments
+        results_1d[field] = defaultdict(dict)
+        for f_res in result_list_1d:
+            with open(f_res) as f:
+                reader = csv.reader(f, delimiter=' ')
+
+                # loop nodes
+                results_1d_f = []
+                for line in reader:
+                    results_1d_f.append([float(l) for l in line if l][1:])
+
+            # store results and GroupId
+            seg = int(re.findall(r'\d+', f_res)[-1])
+            branch = int(re.findall(r'\d+', f_res)[-2])
+            results_1d[field][branch][seg] = np.array(results_1d_f)
+
+    # read simulation parameters and add to result dict
+    results_1d['params'] = get_dict(params_file)
+
+    return results_1d
+import numpy as np
+import shutil
+import argparse
+import glob
+import os
+import csv
+import re
+from collections import defaultdict, OrderedDict
+
+def get_dict(fpath):
+    """
+    Read .npy dictionary saved with numpy.save if path is defined and exists
+    Args:
+        fpath: path to .npy file
+
+    Returns:
+        dictionary
+    """
+    if fpath is not None and os.path.exists(fpath):
+        return np.load(fpath, allow_pickle=True).item()
+    else:
+        return {}
+def main():
+    martin_1d_input = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_1d\\0176_0000_1d.in'
+    pred_file = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393_10_surface\\1d_solver_output_bc_swapped.in'
+    reparse_solver_input_use_martins(martin_1d_input, pred_file)
+
+    solver_path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\1d_solver_output_swapped_based_on_id_GUI.in'
+    run_1d_simulation(solver_path)

@@ -3,11 +3,12 @@ import sys
 sys.path.append('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\SimVascular-master\\Python\\site-packages')
 from sv import *
 from sv_rom_simulation import *
-from sv_rom_simulation import parameters as res_params
+#from sv_rom_simulation import parameters as res_params
 import sv
 import vtk
 from vtk.util.numpy_support import numpy_to_vtk as n2v
 from vtk.util.numpy_support import vtk_to_numpy as v2n
+from sv_auto_lv_modeling.modeling.src import meshing as svmeshtool
 import pdb 
 import os
 import numpy as np
@@ -20,6 +21,7 @@ import re
 from collections import defaultdict, OrderedDict
 import scipy
 from scipy.interpolate import interp1d
+
 
 def collect_arrays(output):
     res = {}
@@ -198,96 +200,6 @@ def get_time(model, res, time, dt_3d=0, nt_3d=0, ns_3d=0, t_in=0):
         time[model + '_cycles'] = np.array(cycle_range, dtype=object)
         return time
 
-
-
-# def map_rom_to_centerline(rom, geo_cent, res, time, only_last=True):
-#     """
-#     Map 0d or 1d results to centerline
-#     """
-#     # assemble output dict
-#     rec_dd = lambda: defaultdict(rec_dd)
-#     arrays = rec_dd()
-
-#     # get centerline arrays
-#     arrays_cent, _ = get_all_arrays(geo_cent)
-
-#     # centerline points
-#     points = v2n(geo_cent.GetPoints().GetData())
-
-#     # pick results
-#     if only_last:
-#         name = rom + '_int_last'
-#         t_vec = time[rom]
-#     else:
-#         name = rom + '_int'
-#         t_vec = time[rom + '_all']
-
-#     # loop all result fields
-#     for f in res.keys():
-#         if 'path' in f:
-#             continue
-#         array_f = np.zeros((arrays_cent['Path'].shape[0], len(t_vec)))
-#         n_outlet = np.zeros(arrays_cent['Path'].shape[0])
-#         for br in f.keys(): ################################################# should be f.keys()?
-#             # get centerline path
-#             path_cent = arrays_cent['Path'][arrays_cent['BranchId'] == br]
-#             path_cent /= path_cent[-1]
-
-#             # get 0d path
-#             path_0d = res[f][rom + '_path']
-#             path_0d /= path_0d[-1]
-
-#             # linearly interpolate results along centerline
-#             f_cent = interp1d(path_0d, res[br][f][name].T)(path_cent).T
-
-#             # store in global array
-#             array_f[arrays_cent['BranchId'] == br] = f_cent
-
-#             # add upstream part of branch within junction
-#             if br == 0:
-#                 continue
-
-#             # first point of branch
-#             ip = np.where(arrays_cent['BranchId'] == br)[0][0]
-
-#             # centerline that passes through branch (first occurence)
-#             cid = np.where(arrays_cent['CenterlineId'][ip])[0][0]
-
-#             # id of upstream junction
-#             jc = arrays_cent['BifurcationId'][ip - 1]
-
-#             # centerline within junction
-#             jc_cent = np.where(np.logical_and(arrays_cent['BifurcationId'] == jc,
-#                                               arrays_cent['CenterlineId'][:, cid]))[0]
-
-#             # length of centerline within junction
-#             jc_path = np.append(0, np.cumsum(np.linalg.norm(np.diff(points[jc_cent], axis=0), axis=1)))
-#             jc_path /= jc_path[-1]
-
-#             # results at upstream branch
-#             res_br_u = res[arrays_cent['BranchId'][jc_cent[0] - 1]][f][name]
-
-#             # results at beginning and end of centerline within junction
-#             f0 = res_br_u[-1]
-#             f1 = res[br][f][name][0]
-
-#             # map 1d results to centerline using paths
-#             array_f[jc_cent] += interp1d([0, 1], np.vstack((f0, f1)).T, fill_value='extrapolate')(jc_path).T
-
-#             # count number of outlets of this junction
-#             n_outlet[jc_cent] += 1
-
-#             # normalize by number of outlets
-#         array_f[n_outlet > 0] = (array_f[n_outlet > 0].T / n_outlet[n_outlet > 0]).T
-
-#         # assemble time steps
-#         if only_last:
-#             arrays[0]['point'][f] = array_f[:, -1]
-#         else:
-#             for i, t in enumerate(t_vec):
-#                 arrays[str(t)]['point'][f] = array_f[:, i]
-
-#     return arrays
 def map_rom_to_centerline(rom, geo_cent, res, time, only_last=True):
     """
     Map 0d or 1d results to centerline
@@ -377,33 +289,33 @@ def map_rom_to_centerline(rom, geo_cent, res, time, only_last=True):
 
     return arrays
     
-def set_res_params():
-    res_Params = res_params.Parameters()
-    res_Params.data_names = None
-    res_Params.output_directory = None
-    res_Params.results_directory = None
-    res_Params.plot_results = None
-    ## Solver parameters.
-    res_Params.solver_file_name = None
-    res_Params.model_name = None
-    res_Params.model_order = None
-    res_Params.num_steps = None
-    res_Params.time_step = None
-    res_Params.time_range = None
-    ## Segment names and booleans for selecting segements.
-    res_Params.segment_names = None
-    res_Params.all_segments = False
-    res_Params.outlet_segments = False
-    res_Params.select_segment_names = False
-    res_Params.output_file_name = None
-    res_Params.output_format = "csv"
-    # model input
-    res_Params.oned_model = '1d_model.vtp'
-    res_Params.centerlines_file = None
-    res_Params.volume_mesh_file = None
-    res_Params.walls_mesh_file = None
-    res_Params.display_geometry = False
-    res_Params.node_sphere_radius = 0.1
+# def set_res_params():
+#     res_Params = res_params.Parameters()
+#     res_Params.data_names = None
+#     res_Params.output_directory = None
+#     res_Params.results_directory = None
+#     res_Params.plot_results = None
+#     ## Solver parameters.
+#     res_Params.solver_file_name = None
+#     res_Params.model_name = None
+#     res_Params.model_order = None
+#     res_Params.num_steps = None
+#     res_Params.time_step = None
+#     res_Params.time_range = None
+#     ## Segment names and booleans for selecting segements.
+#     res_Params.segment_names = None
+#     res_Params.all_segments = False
+#     res_Params.outlet_segments = False
+#     res_Params.select_segment_names = False
+#     res_Params.output_file_name = None
+#     res_Params.output_format = "csv"
+#     # model input
+#     res_Params.oned_model = '1d_model.vtp'
+#     res_Params.centerlines_file = None
+#     res_Params.volume_mesh_file = None
+#     res_Params.walls_mesh_file = None
+#     res_Params.display_geometry = False
+#     res_Params.node_sphere_radius = 0.1
 
 def read_results_0d(fpath):
     """
@@ -542,7 +454,13 @@ def write_results(f_out, cent, arrays, only_last=True):
     # write to file
     write_geo(f_out, cent)
 
-
+def get_inflow_smooth(inflow):
+        f = inflow
+        if os.path.exists(f):
+            m = np.loadtxt(f)
+            return m[:, 0], m[:, 1]
+        else:
+            return None, None
 
 def set_path_name():
     "path to ur result folder"
@@ -562,7 +480,8 @@ def set_path_name():
     return result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path
 
 def main():
-    sys.path.append('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall')
+    
+    # sys.path.append('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall')
     # from rom_master_to_analyze_result_ import *
 
 
@@ -584,75 +503,76 @@ def main():
     # dict_keys([0])
     # (Pdb) our_res['Re'][2].keys()
     # dict_keys([0, 1, 2])
-    our_pressure = our_res['pressure']
-    our_wss = our_res['wss']
-    our_re = our_res['Re']
-    our_area = our_res['area']
-    our_params = our_res['params']
-    our_flow = our_res['flow']
-
-    gt_pressure = gt_dic['pressure']
-    gt_wss = gt_dic['wss']
-    gt_re = gt_dic['Re']
-    gt_area = gt_dic['area']
-    gt_params = gt_dic['params']
-    gt_flow = gt_dic['flow']
     
-    gt_cent  = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp')
     
+    our_cent  = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp')
+    gt_cent = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\centerlines\\0176_0000.vtp')
     inflow = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\inflow_files\\inflow_1d.flow'
-    # def qget_time(path):
-    #     with open(path, 'r') as file:
-    #         lines = file.readlines()
-    #     first_column = [float(line.split()[0]) for line in lines if line.strip()]
-    #     return first_column
-    # time = qget_time(inflow)
-    #pdb.set_trace()
-    def get_inflow_smooth(inflow):
-        f = inflow
-        if os.path.exists(f):
-            m = np.loadtxt(f)
-            return m[:, 0], m[:, 1]
-        else:
-            return None, None
     
-    time_inflow, _ = get_inflow_smooth(inflow)
+    
+    
+    # time_inflow, _ = get_inflow_smooth(inflow)
 
-    result_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis'
+    # result_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis'
 
     
     
     
 
-    time = {}
-    res = defaultdict(lambda: defaultdict(dict))
-    f_res_1d = gt_dic
-    f_oned = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis\\0176_0000.vtp')
-    
-    
-    collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
-    # getT = get_time('1d', gt_dic, time,t_in=0.8)
-
-
-    # res = defaultdict(lambda: defaultdict(dict))
     # time = {}
-    # f_res_1d = gt_dic['flow']
+    # res = defaultdict(lambda: defaultdict(dict))
+    # f_res_1d = gt_dic
+    # f_oned = gt_cent
     
+    # collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
+    # # getT = get_time('1d', gt_dic, time,t_in=0.8)
+
     
-    arrays = map_rom_to_centerline('1d', gt_cent, res, time, only_last=True)
-    f_out  = os.path.join(result_folder, '0176_0000_gt_res_mapped.vtp')
+    # arrays = map_rom_to_centerline('1d', gt_cent, res, time, only_last=True)
+    # f_out  = os.path.join(result_folder, '0176_0000_gt_res_mapped.vtp')
 
-    write_results(f_out, gt_cent, arrays, only_last=True)
+    # write_results(f_out, gt_cent, arrays, only_last=True)
 
-    # our res
-    time = {}
-    res = defaultdict(lambda: defaultdict(dict))
-    f_res_1d = our_res
-    f_oned = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp')
-    collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
-    arrays = map_rom_to_centerline('1d', f_oned, res, time, only_last=True)
-    f_out  = os.path.join(result_folder, '0176_0000_OUR_res_mapped.vtp')
-    write_results(f_out, gt_cent, arrays, only_last=True)
+    # # our res
+    # time = {}
+    # res = defaultdict(lambda: defaultdict(dict))
+    # f_res_1d = our_res
+    # f_oned = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp')
+    # collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
+    # arrays = map_rom_to_centerline('1d', f_oned, res, time, only_last=True)
+    # f_out  = os.path.join(result_folder, '0176_0000_OUR_res_mapped.vtp')
+    # write_results(f_out, our_cent, arrays, only_last=True)
+
+    
+    def pipeline_mapping_last_t_step_1d_res_to_cl(res_folder,cl_path,inflow_path,output_path):
+        
+        # initiate parameters
+        
+        time = {}
+        res = defaultdict(lambda: defaultdict(dict))
+        clpd = read_polydata(cl_path)
+        res_dic = read_results_1d(res_folder)
+        time_inflow, _ = get_inflow_smooth(inflow)
+
+        collect_results('1d', res, time, res_dic, clpd, t_in=time_inflow[-1])
+
+        arrays = map_rom_to_centerline('1d', clpd, res, time, only_last=True)
+        output_path = os.path.join(output_path, '0176_0000_OUR_GUI_ID_mapped.vtp')
+        write_results(output_path, clpd, arrays, only_last=True)
+        return res_dic
+
+
+    out_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis'
+    our_cent_path  = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp'
+    res_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\1d_result_swapped_GUI_and_id'
+    res_dic = pipeline_mapping_last_t_step_1d_res_to_cl(res_folder,our_cent_path,inflow,out_folder)
+        
+
+    #--------------------- map 1d to 3d --------------#
+    # see Oned_to_3d_projection.py
+
+
+
 
     pdb.set_trace()
     # visualize results results_1d into 
