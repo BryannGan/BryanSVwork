@@ -1,6 +1,6 @@
 import sys
 # import ur sv_master python folder
-#sys.path.append('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\SimVascular-master\\Python\\site-packages')
+sys.path.append('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\SimVascular-master\\Python\\site-packages')
 from sv import *
 from sv_rom_simulation import *
 import sv
@@ -957,15 +957,11 @@ def reparse_solver_input_use_martins(gt_file, pred_file):
 
 def run_1d_simulation(input_file_path):
     OneDSolver_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release\\OneDSolver.exe'
-    try:
-        subprocess.check_output([OneDSolver_path, input_file_path], cwd = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release')
-    except subprocess.CalledProcessError as e:
-        print("Error output:", e.output.decode())
+    subprocess.check_output([OneDSolver_path, input_file_path], cwd = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release')
     OneDSolver_folder_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release'
-    
-    
-
     return OneDSolver_folder_path
+
+
 
 def set_path_name():
     "path to ur result folder"
@@ -987,500 +983,48 @@ def set_path_name():
 
 def main():
     result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path = set_path_name()
-    
-    
-    for filename in os.listdir(Numi_model_path):  #iterate through all the models in the folder
-        result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path = set_path_name()
-        
-        
-        # print('debug: filename ' + filename)
-        pred_surf_path = os.path.join(Numi_model_path, filename)
-        # print('debug: pred_surf_path' + pred_surf_path)
-        specific_folder = mkdir(result_master_folder,filename[:-4])
-        print(filename)
-        # print('debug: specific_folder' + specific_folder)
-        
-        if filename[0:16] == 'final_assembly_o':  # original
-            filename = filename[24:33]+filename[-4:] #remove Numi_ from the filename
-        elif filename[0:16] == 'final_assembly_u':
-            filename = filename[25:34]+filename[-4:] # upsampled
-        else:
-            filename = filename[0:9]+'.vtp'
-        # specific_folder = specific_folder[:-4]
-        print(filename)
-        
-        # print('debug: filename' + filename)
+    #pd = read_geo('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0063_1001_rerun\\export_PRED_ROM_ready_surface_modified.vtp')
+    path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0063_1001_rerun'
+    model_name = '0063_1001'
 
-        # create log file for each model
-        
-        edit_log(specific_folder, "boxcutting model: "+filename)
-        
-        
-        gt_cl_path = os.path.join(gt_cl_path,filename)
-        gt_model_path = os.path.join(svproject_path, os.path.splitext(filename)[0], 'Models', filename)
-        gt_inflow_pd_path = os.path.join(svproject_path, os.path.splitext(filename)[0],'Simulations',os.path.splitext(filename)[0],'mesh-complete','mesh-surfaces','inflow.vtp')
-        path_to_write= os.path.join(specific_folder, 'clipped_')+filename
-        mdl_path = os.path.join(svproject_path, os.path.splitext(filename)[0], 'Models', filename[:-4]+'.mdl')
-        bc_file_path = os.path.join(svproject_path, os.path.splitext(filename)[0],'Simulations',os.path.splitext(filename)[0],'rcrt.dat')
-        gt_inflow_file_path = os.path.join(svproject_path, os.path.splitext(filename)[0],'flow-files')
-        martin_1d_input = os.path.join(martin_1d_input_path, filename[:-4]+'_1d.in')
-        # print('debug: pred_surf_path ' + pred_surf_path)
-        # print('debug: specific_folder ' + specific_folder)
-        # print('debug: filename ' + filename)
-        # print('debug: gt_cl_path ' + gt_cl_path)
-        # print('debug: gt_model_path ' + gt_model_path)
-        # print('debug: path_to_write ' + path_to_write)
-        # print('debug: gt_inflow_pd_path ' + gt_inflow_pd_path)
+    def setup_PRED_ROM_parameters(path,model_name,order):
+        if order == 1:
+            Params = Parameters() # put everything is params
+            Params.density = 1.06
+            Params.output_directory = path
+            Params.boundary_surfaces_dir = os.path.join(path,'pred_boundary_faces')
+            Params.inlet_face_input_file = 'inlet.vtp'
+            Params.centerlines_output_file = os.path.join(path,'extracted_pred_centerlines.vtp')
+            Params.surface_model = os.path.join(path,'export_PRED_ROM_ready_surface.vtp')
+            Params.inflow_input_file = os.path.join(path,'pred_inflow_files','inflow_1d.flow')
+            Params.model_order = 1
+            Params.solver_output_file = 'pred_1d_solver_output_redo.in' # need this to write out the solver file
+            Params.model_name = model_name
+            Params.outflow_bc_type = 'rcr' #rcr, resistance or coronary vmr 3d sim uses this and it calls 
+            Params.outflow_bc_file =  os.path.join(path,'pred_inflow_files\\')
+            # create own .dat file? 
+            Params.uniform_bc = False
+            return Params
 
-        # boxcut the model
-        box_scale = 3
-        try:
-            boxcut_model,clippingbox = bryan_boxcut(gt_cl_path,pred_surf_path,filename,box_scale, gt_cl_path)
-            
-        except:
-            print('boxcutting failed')
-            edit_log(specific_folder, "boxcutting failed at Numi surf pre-processing")
-            continue
+    Params = setup_PRED_ROM_parameters(path,model_name,1)
+    Cl = Centerlines()
+    try:
+        Cl.extract_center_lines(Params)
+    except:
+        print('error in extracting centerlines')
+    msh = mesh.Mesh()
+    msh.outlet_face_names_file = os.path.join(path,'centerline_outlets.dat')
+    msh.generate(Params,Cl) 
+    martin_1d_input = os.path.join(martin_1d_input_path, model_name+'_1d.in')
+    reparse_solver_input_use_martins(martin_1d_input, os.path.join(path,'pred_1d_solver_output_redo.in'))
 
-        edit_log(specific_folder, "boxcutting finished")
-        
-        # save the boxcut model
-        write_polydata(os.path.join(specific_folder, 'clipped_')+filename, boxcut_model)
-        write_polydata(os.path.join(specific_folder, 'box_for_')+filename, clippingbox)
-        edit_log(specific_folder, "boxcutted model saved, still need validation")
-        
-        rom_ready_vtp_path = os.path.join(specific_folder, 'clipped_'+filename)
-        
-        print('debug: rom_ready_vtp_path ' + rom_ready_vtp_path)
-        
-        model_vtp = read_surface(rom_ready_vtp_path,'vtp',None)
-        extract = sv.modeling.PolyData(model_vtp)
-        extract.compute_boundary_faces(90.0) # 90 degree angle --> form 1 face (the wall)   // under modeling 
-        extracted_pd = extract.get_polydata() # extract pd from modeling class    #under modeling
-        filled = sv.vmtk.cap(extracted_pd)   #filled holes --> form inlets and outlets   #under vmtk
-        filled_md =sv.modeling.PolyData(filled) # create new object (polydata with face id attribute)
-        
-        # save the filled model
-        write_polydata(os.path.join(specific_folder, 'filled_'+ filename), filled_md.get_polydata())
-        edit_log(specific_folder, "filled model saved")
-        full_pd = filled_md.get_polydata() #get polydata from new object
-        edit_log(specific_folder, "remeshing to get finer model for mesh generation")
-        first_time_remeshed = svmeshtool.remesh_polydata(full_pd,0.1,0.1)
-        write_polydata(os.path.join(specific_folder, 'first_time_remeshed.vtp'), first_time_remeshed)
-        edit_log(specific_folder, "saved remeshed model as first_time_remeshed.vtp")
-        
-        # if ROM_ready_pd is None:
-        #     edit_log(specific_folder, "remeshing failed")
-        #     continue
-        # else:
-        #     edit_log(specific_folder, "remeshing finished,start exportiing caps")
-
-        ready_md = sv.modeling.PolyData(first_time_remeshed) # create new object (finer polydata with face id attribute)
-        # export caps 
-        boundary_face_path= mkdir(specific_folder,'pred_boundary_faces')
-
-        # first write all the faces of ground truth model  into a folder in order of faceID. face1.vtp, face2.vtp ....
-        # then write all the faces of the predicted model into another folder 
-        # match the faces of the predicted model with the ground truth model, in order of the ground truth faces
-        # write the matched faces into a new folder with naming convention
-
-        # writing the ground truth model faces into a folder (make into function) WORKED!!
-        try:
-            gt_cap_path = write_gt_caps(specific_folder,gt_model_path)
-        except:
-            edit_log(specific_folder, "something is wrong with the groundtruth model! Can't get face data")
-            print('something is wrong with the groundtruth model! Can\'t get face data')
-            continue
-        edit_log(specific_folder, "groundtruth caps exported")
-        unmatched_pred_cap_path = write_pred_caps(specific_folder,ready_md)
-
-        # rename wall
-        rename_highest_points_vtp(unmatched_pred_cap_path) # rename the largest vtp file to wall.vtp
-        
-
-        # match the faces of the predicted model with the ground truth model, in order of the ground truth faces
-        
-    
-
-        # renamed inlet and deleted inlet vtp from gt folder
-        delete_and_rename_inlet_files(unmatched_pred_cap_path, gt_cap_path, gt_inflow_pd_path, tolerance=0.5)
-        move_inflow_and_wall(unmatched_pred_cap_path, boundary_face_path)
-        
-        # we have dir_a and dir_b containing matching caps and unmatched caps
-        matched_caps_lst,unmatched_lst = match_files(gt_cap_path,unmatched_pred_cap_path, tolerance=0.5)
-        
-        # if number of complete pairs in matched_caps_lst is less than 2, then we can't do anything
-        def captured_more_than_2_outlets(matched_caps_lst):
-            count = 0
-            for i in matched_caps_lst:
-                if i[1] != None:
-                    count += 1
-            if count >= 1: # used to be 2 but that would mean there are three outlets, 1 for inlet, 2 for outlets
-                #fix this later
-                return True
-            else:
-                return False 
-        if captured_more_than_2_outlets(matched_caps_lst) == False:
-            edit_log(specific_folder, "pred surf does not capture more than 2 outlets, can't run simulation")
-            print('pred surf does not capture more than 2 outlets, can\'t run simulation')
-            continue
+    pred_input_file_path = os.path.join(path,'PRED_1d_solver_output.in')
+    try:
+        OneDSolver_folder_path = run_1d_simulation(pred_input_file_path)
+    except:
+        edit_log(path, "1d simulation failed!!!")
 
 
-        ###################### determine scenario for simulation: does pred surf capture all outlets?
-        ###################### matched_caps_lst has [[gt_cap,pred_cap],[gt_cap,None]...]
-        ###################### determine if need to rerun gt sim with selective outlets. 
-        ###################### Lets get the centerline class and mesh class for gt sim first! 
-        # evaluate if pred has captured all gt caps 
-        def evaluate_matched_caps(matched_caps_lst):
-            lst_of_uncaptured_gt_caps = []
-            for i in matched_caps_lst:
-                if i[1] == None:
-                    lst_of_uncaptured_gt_caps.append(i[0])
-            return lst_of_uncaptured_gt_caps
-        
-        def match_uncaptured_gt_caps_with_faceID(uncaptured_gt_caps,gt_cap_path,tol=0.01):
-            lst_gt_cap_centroids = []
-            lst_uncaptured_gt_cap_centroids = []
-            for i in uncaptured_gt_caps:
-                centroid = compute_polydata_centroid(i)
-                lst_uncaptured_gt_cap_centroids.append(centroid)
-            
-            for i in os.listdir(gt_cap_path):
-                file_path = os.path.join(gt_cap_path, i)
-                pd = read_geo(file_path)
-                centroid = compute_polydata_centroid(pd)
-                lst_gt_cap_centroids.append([i,centroid])
-            
-            # now we have 2 lists of centroids, match them by returning a lst of faceID
-            # dic,indices = match_coord(lst_uncaptured_gt_cap_centroids,lst_gt_cap_centroids)
-            return  lst_uncaptured_gt_cap_centroids, lst_gt_cap_centroids
-        
-        def find_matching_numbers(uncap_lst, lst_centroid):
-            # Create a dictionary to map centroid points to their corresponding number in the filename
-            centroid_to_number = {centroid: int(filename.split('_')[2].split('.')[0]) for filename, centroid in lst_centroid}
-
-            # Create a list to hold the matching numbers
-            matching_numbers = []
-
-            # Compare each point in uncap_lst with the centroids
-            for point in uncap_lst:
-                if point in centroid_to_number:
-                    # If a match is found, append the corresponding number to the matching_numbers list
-                    matching_numbers.append(centroid_to_number[point])
-
-            return matching_numbers
-
-
-        hi = evaluate_matched_caps(matched_caps_lst)
-        if hi == []: # means pred surf captures all gt caps! result is given, run martin's 1d solver file
-            # run martin's 1d solver file
-            print('pred surf captures all gt caps! result is given, run martin\'s 1d solver file')
-            martin_1d_input = os.path.join(martin_1d_input_path, filename[:-4]+'_1d.in')
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-            OneDSolver_folder_path = run_1d_simulation(martin_1d_input)
-            OneD_result_path = mkdir(specific_folder,'GT_1d_results')
-            move_all_except(OneDSolver_folder_path, OneD_result_path)
-            gtclpd = read_geo(gt_cl_path)
-            gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-            master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair)
-            copy_file(martin_1d_input_path, filename[:-4]+'_1d.in', OneD_result_path)
-
-
-        elif hi != []: # means pred surf does not capture all gt caps!
-            uncap_lst, lst_centorid = match_uncaptured_gt_caps_with_faceID(hi,gt_cap_path,tol=0.01)
-            ############
-            ############ HERE, we figured out what gt caps are not captured by pred surf and the faceID of them in GT surface
-            
-            face_id_to_merge_to_wall_for_gt_sim = find_matching_numbers(uncap_lst, lst_centorid)
-            
-            ############ start setting up gt sim with selective outlets
-            modified_gt_md = sv.modeling.PolyData(read_geo(gt_model_path))
-            wall_id_to_combine = modified_gt_md.identify_caps()
-            print(wall_id_to_combine)
-            wall_id_to_combine = [i+1 for i in range(len(wall_id_to_combine)) if wall_id_to_combine[i] == False]
-            print(wall_id_to_combine)
-            wall_id_to_combine = wall_id_to_combine + face_id_to_merge_to_wall_for_gt_sim
-            print(wall_id_to_combine)
-            smallest = min(wall_id_to_combine)
-            wall_id_to_combine.remove(smallest)
-            for i in wall_id_to_combine:
-                modified_gt_md.combine_faces(smallest,[i])
-            
-            # now we have a modified gt model with selective outlets, write out the polydata
-            modified_gt_pd = modified_gt_md.get_polydata()
-            write_polydata(os.path.join(specific_folder, 'modified_gt_surf_for_sim.vtp'), modified_gt_pd)
-            gt_sim_surf_path = os.path.join(specific_folder, 'modified_gt_surf_for_sim.vtp')
-            # done with GT surf, get parameter for simulation!!
-
-            # set up gt sim
-            gt_sim_boundary_face_path= mkdir(specific_folder,'GT_sim_boundary_faces')
-            faceids_to_write = modified_gt_md.get_face_ids()
-            faceids_to_write.remove(smallest)
-            write_polydata(os.path.join(gt_sim_boundary_face_path, 'wall.vtp'), modified_gt_md.get_face_polydata(smallest))
-            for i in faceids_to_write:
-                write_polydata(os.path.join(gt_sim_boundary_face_path,'outlet'+str(i)+'.vtp'),modified_gt_md.get_face_polydata(i))
-            # evaluate inlet
-            gt_inlet_centroid = compute_polydata_centroid(read_geo(gt_inflow_pd_path))
-            # calculate centroid of everything in gt_sim_boundary_face_path and find the closest one to gt_inlet_centroid and rename the file to inlet.vtp
-            gt_inlet_centroid_lst = []
-            for i in os.listdir(gt_sim_boundary_face_path):
-                file_path = os.path.join(gt_sim_boundary_face_path, i)
-                pd = read_geo(file_path)
-                centroid = compute_polydata_centroid(pd)
-                gt_inlet_centroid_lst.append([i,centroid])
-            # now we have a list of all the centroids of the faces in gt_sim_boundary_face_path, find the closest one to gt_inlet_centroid
-            for i in gt_inlet_centroid_lst:
-                distance = compute_distance(i[1],gt_inlet_centroid)
-                print(distance)
-                if distance < 0.3:
-                    new_path = os.path.join(gt_sim_boundary_face_path, 'inlet.vtp')
-                    os.rename(os.path.join(gt_sim_boundary_face_path,i[0]), new_path)
-                    break
-
-            gt_inflow_directory = mkdir(specific_folder,'gt_inflow_files')
-            # copy inflow files
-            copy_file(gt_inflow_file_path, 'inflow_1d.flow', gt_inflow_directory)
-            copy_file(gt_inflow_file_path, 'inflow_3d.flow', gt_inflow_directory)
-
-            # form rcrt.dat
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-
-            
-            GT_Params = setup_GT_ROM_parameters(specific_folder,filename,1)
-
-            
-            Cl = Centerlines()
-            try:
-                Cl.extract_center_lines(GT_Params)
-            except:
-                edit_log(specific_folder, "gt centerline extraction failed!!!")
-                print('gt centerline extraction failed!!!')
-                continue
-            
-            # see if centerline file exiset
-            if os.path.join(specific_folder,'extracted_GT_sim_centerlines.vtp') is None:
-                edit_log(specific_folder, "gt centerline extraction failed!!! Centerlinefile does not exist")
-                print('gt centerline extraction failed!!! Centerlinefile does not exist')
-                continue
-            extracted_gt_cl_pd = read_geo(os.path.join(specific_folder,'extracted_GT_sim_centerlines.vtp'))
-             #detect if centerline extraction is successful for simulation: see if it has BranchId
-            if extracted_gt_cl_pd.GetPointData().GetArray('BranchId') is None:
-                edit_log(specific_folder, "centerline extraction failed!!!  No BranchId in the centerline file")
-                print('gt centerline extraction failed!!! No BranchId in the centerline file')
-                continue
-            else:
-                edit_log(specific_folder, "centerline extraction finished, start mesh generation")
-
-            # centerline extraction worked!! construct rcrt.dat file!
-            gtclpd = read_geo(gt_cl_path)
-            gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-            master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair) #most important!!
-            
-            #>>> master_gt_bc_lst[i][0] is branchid
-            #>>> master_gt_bc_lst[i][1] is RCR_# in martin's solver
-            #>>> master_gt_bc_lst[i][2] is the BOUNDARY CONDITION!!  
-            #>>> master_gt_bc_lst[i][3] is the coordinates of the end points in that branch
-            endpts_for_our_simu = pair_endpts_with_branchid(extracted_gt_cl_pd)
-            #>>> endpts_for_our_simu[i][0] is branchid
-            #>>> endpts_for_our_simu[i][1] is the coordinates of the end points in that branch
-            endpts_for_our_simu = add_face_name_to_our_sim(endpts_for_our_simu,gt_sim_boundary_face_path)
-            gt_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_our_simu)
-            write_rcrt_dat_file(gt_inflow_directory,gt_sim_bc_matching_endpts_lst)
-            gtmsh = mesh.Mesh()
-            gtmsh.outlet_face_names_file = os.path.join(specific_folder,'centerline_outlets.dat')
-            
-            gtmsh.generate(GT_Params,Cl) 
-            reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'GT_1d_solver_output.in'))
-        
-            gt_input_file_path = os.path.join(specific_folder,'GT_1d_solver_output.in')
-            try:
-                OneDSolver_folder_path = run_1d_simulation(gt_input_file_path)
-                OneD_result_path = mkdir(specific_folder,'gt_1d_results')
-                move_all_except(OneDSolver_folder_path, OneD_result_path)
-                print('Done with GT 1d simulation')
-                copy_file(specific_folder,'GT_1d_solver_output.in', OneD_result_path)
-            except:
-
-                edit_log(specific_folder, "GT 1d simulation failed!!!")
-                
-            
-           
-        ############ done with modified gt sim!##########################
-        #################################################################
-        #################################################################
-        # #test
-        # for i in range(len(matched_caps_lst)):
-        #     write_polydata(os.path.join(boundary_face_path,'outlet'+str(i)+'.vtp'),matched_caps_lst[i][1])
-        # for i in range(len(matched_caps_lst)):
-        #     write_polydata(os.path.join(boundary_face_path,'outlet'+str(i+100)+'.vtp'),matched_caps_lst[i][0])
-        # pdb.set_trace()
-
-        #test if predicted surface has all the gt_caps by see if each element in matched_caps_lst has 2 elements (matched pair)
-        
-        for i in matched_caps_lst:
-            if len(i) != 2:
-                edit_log(specific_folder, "predicted surface does not have all the ground truth caps, consider to adjust tolerance and boxcut scale")
-                print("predicted surface does not have all the ground truth caps")
-                print('running simulation with partial VMR outletes')
-                print("consider to adjust tolerance and boxcut scale")
-
-        number_of_files = len([f for f in os.listdir(gt_cap_path) if os.path.isfile(os.path.join(gt_cap_path, f))])
-        if len(matched_caps_lst) != number_of_files:
-            edit_log(specific_folder, "predicted surface does not have all the ground truth caps, consider to adjust tolerance and boxcut scale")
-            print("predicted surface does not have all the ground truth caps, consider to adjust tolerance and boxcut scale")
-            
-
-        print(unmatched_lst)
-
-
-        def get_unmatched_face_id(unmatched_lst):
-            # Use a regular expression to extract digits from the filenames in the unmatched_lst
-            unmatched_face_id = [''.join(re.findall(r'\d+', i.split('\\')[-1])) for i in unmatched_lst]
-            unmatched_face_id = [int(i) for i in unmatched_face_id]
-            return unmatched_face_id
-
-        unmatched_face_id = get_unmatched_face_id(unmatched_lst)
-        print(unmatched_face_id)
-        
-        print(ready_md.get_face_ids())
-        # merge the unmatched caps into one wall
-        for i in unmatched_face_id:
-            ready_md.combine_faces(1,[i])
-        
-        ROM_ready_pd = ready_md.get_polydata()
-        second_time_remeshed = svmeshtool.remesh_polydata(ROM_ready_pd,0.1,0.1)
-        write_polydata(os.path.join(specific_folder, 'export_PRED_ROM_ready_surface.vtp'), second_time_remeshed)
-        
-        
-        
-        # sort and match outlet again after merging unmatched caps into one wall
-        # new wall now!! update wall.vtp
-        boundary_faces_for_final_geo_not_for_simulation_path = write_final_caps(specific_folder,ready_md)
-        delete_everything(boundary_face_path)
-        delete_everything(gt_cap_path)
-        gt_cap_path = write_gt_caps(specific_folder,gt_model_path)
-        rename_highest_points_vtp(boundary_faces_for_final_geo_not_for_simulation_path)
-        delete_and_rename_inlet_files(boundary_faces_for_final_geo_not_for_simulation_path, gt_cap_path, gt_inflow_pd_path, tolerance=0.5)
-        move_inflow_and_wall(boundary_faces_for_final_geo_not_for_simulation_path, boundary_face_path)
-        matched_caps_lst, unmatched_files_b_list = match_files(gt_cap_path,boundary_faces_for_final_geo_not_for_simulation_path, tolerance=0.5)
-        # >>>[[(vtkCommonDataModelPython.vtkPolyData)0000025E7F6BD8E8, (vtkCommonDataModelPython.vtkPolyData)0000025E7F6BD888], ...]
-        
-        write_ordered_cap_for_pred_simulation(boundary_face_path, matched_caps_lst)
-        
-
-# lst = parse_mdl_to_list('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\sv projects\\0146_1001\\Models\\0146_1001.mdl')
-# >>> lst
-# [[1, 'wall', 'wall'], [10, 'renal_left', 'cap'], [11, 'renal_right', 'cap'], [12, 'SMA', 'cap'], 
-# [2, 'inflow', 'cap'], [3, 'celiac_hepatic', 'cap'], [4, 'celiac_splenic', 'cap'],
-# [5, 'ext_iliac_left', 'cap'], [6, 'ext_iliac_right', 'cap'], [7, 'IMA', 'cap'],
-# [8, 'int_iliac_left', 'cap'], [9, 'int_iliac_right', 'cap']]
-# lst, face_name_lst = sort_and_reorder(lst)
-# >>> lst
-# [[2, 'inflow', 'cap'], [3, 'celiac_hepatic', 'cap'], [4, 'celiac_splenic', 'cap'], 
-#  [5, 'ext_iliac_left', 'cap'], [6, 'ext_iliac_right', 'cap'], [7, 'IMA', 'cap'], [8, 'int_iliac_left', 'cap'],
-#  [9, 'int_iliac_right', 'cap'], [10, 'renal_left', 'cap'], [11, 'renal_right', 'cap'], [12, 'SMA', 'cap']]
-# >>> face_name_lst
-# ['celiac_hepatic', 'celiac_splenic', 'ext_iliac_left', 'ext_iliac_right', 'IMA', 'int_iliac_left', 'int_iliac_right', 'renal_left', 'renal_right', 'SMA']
-# lines = insert_outlet_names_to_rcrt('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\sv projects\\0146_1001\\Simulations\\0146_1001\\rcrt.dat',face_name_lst)
-# write_to_file('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_summer_research\\ROM results\\inflow_files\\rcrt_from_parsing.dat',lines)
-        
-        files = [f for f in os.listdir(boundary_face_path) if os.path.isfile(os.path.join(boundary_face_path, f))]
-        # >>> ['inlet.vtp', 'outlet0.vtp', 'outlet1.vtp', 'outlet2.vtp', 'outlet3.vtp', 'outlet4.vtp', 'wall.vtp']
-        # get rid of inlet.vtp and wall.vtp
-        files = files[1:-1]
-        ### get rid of .vtp in all
-        cap_names = [f[:-4] for f in files]
-        # >>> ['outlet0', 'outlet1', 'outlet2', 'outlet3', 'outlet4']
-        # write the outlet names into rcrt.dat
-        
-        pred_inflow_directory = mkdir(specific_folder,'pred_inflow_files')
-        copy_file(gt_inflow_file_path, 'inflow_1d.flow', pred_inflow_directory)
-        copy_file(gt_inflow_file_path, 'inflow_3d.flow', pred_inflow_directory)
-        
-
-
-
-
-
-        # write_to_file(os.path.join(pred_inflow_directory,'rcrt.dat'),lines)
-        # copy inflow files
-        
-
-        
-        
-        PRED_Params = setup_PRED_ROM_parameters(specific_folder,filename,1)
-        
-        Cl = Centerlines()
-        try:
-            Cl.extract_center_lines(PRED_Params)
-        except:
-            edit_log(specific_folder, "pred centerline extraction failed!!!")
-            continue
-        
-       # see if centerline file exiset
-        if os.path.join(specific_folder,'extracted_pred_centerlines.vtp') is None:
-            edit_log(specific_folder, "pred centerline extraction failed!!! Centerlinefile does not exist")
-            continue
-        extracted_pred_cl_pd = read_geo(os.path.join(specific_folder,'extracted_pred_centerlines.vtp'))
-         #detect if centerline extraction is successful for simulation: see if it has BranchId
-        if extracted_pred_cl_pd.GetPointData().GetArray('BranchId') is None:
-            edit_log(specific_folder, "pred centerline extraction failed!!!")
-            continue
-        else:
-            edit_log(specific_folder, "pred centerline extraction finished, start mesh generation")
-
-        # Prepare inflow.dat file for OneD simulation
-        
-
-
-
-        # pdb.set_trace()
-        pred_endpt_branchid_pair = pair_endpts_with_branchid(extracted_pred_cl_pd)
-        
-        endpts_for_pred_simu = add_face_name_to_our_sim(pred_endpt_branchid_pair,boundary_face_path)
-        pred_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_pred_simu)
-        write_rcrt_dat_file(pred_inflow_directory,pred_sim_bc_matching_endpts_lst)
-        
-        msh = mesh.Mesh()
-        msh.outlet_face_names_file = os.path.join(specific_folder,'centerline_outlets.dat')
-        msh.generate(PRED_Params,Cl) 
-
-        ###################### run 0d use a seperate file
-        # Pred_zerod_Params = setup_PRED_ROM_parameters(specific_folder,filename,0)
-        # msh.generate(Pred_zerod_Params,Cl)
-
-        # # parse solver input file so that it matches with Martin's
-        martin_1d_input = os.path.join(martin_1d_input_path, filename[:-4]+'_1d.in')
-        reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'PRED_1d_solver_output.in'))
-
-
-
-        # Run OneD simulation
-        pred_input_file_path = os.path.join(specific_folder,'PRED_1d_solver_output.in')
-        try:
-            OneDSolver_folder_path = run_1d_simulation(pred_input_file_path)
-        except:
-            edit_log(specific_folder, "1d simulation failed!!!")
-            continue
-        
-
-        
-        
-        # move 1d results to specific folder
-        
-
-        OneD_result_path = mkdir(specific_folder,'pred_1d_results')
-        copy_file(specific_folder, 'PRED_1d_solver_output', OneD_result_path)
-        move_all_except(OneDSolver_folder_path, OneD_result_path)
-        continue
-
-
-
-
-if __name__=='__main__':
-    # pdb.set_trace()
+if __name__ == "__main__":
     main()
-    # input_file_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\result_for_176\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\1d_solver_output.in'
-    # run_1d_simulation(input_file_path)
+            

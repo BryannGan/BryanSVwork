@@ -1167,6 +1167,12 @@ def get_dict(fpath):
         return np.load(fpath, allow_pickle=True).item()
     else:
         return {}
+    
+
+
+
+
+    
 def main():
     martin_1d_input = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_1d\\0176_0000_1d.in'
     pred_file = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393_10_surface\\1d_solver_output_bc_swapped.in'
