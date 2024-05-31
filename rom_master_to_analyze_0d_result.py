@@ -21,6 +21,7 @@ from collections import defaultdict, OrderedDict
 import scipy
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
+
 import seaborn as sns
 
 def collect_arrays(output):
@@ -525,12 +526,12 @@ def pipeline_mapping_1d_res_to_cl(res_folder,cl_path,inflow_path,output_path,fil
 
 def get_avg_flow_on_branch_over_time(our_res,cycle):
     num_branch = len(our_res['flow'])
-    flow_master = {i:[] for i in range(num_branch)}
+    last_segment_flow_over_time_for_each_branch = {i:[] for i in range(num_branch)}
     #calc average at every time step for every branch starting from 1
     for i in range(num_branch):
-        for j in range(len(our_res['flow'][i])): # iterat over segments
-            for k in range(len(our_res['flow'][i][j])): # iterat over every point
-                flow_master[i].append(our_res['flow'][i][j][k])
+            # get the last segment: cooresponding to the outlet segment
+            last_segment_flow_over_time_for_each_branch[i].append(our_res['flow'][i][-1][:])
+    last_segment_flow_over_time_for_each_branch = {i:np.array(last_segment_flow_over_time_for_each_branch[i][0]) for i in range(num_branch)}
 
     # flow_master.keys()
     # dict_keys([0, 1, 2, 3, 4])
@@ -539,58 +540,30 @@ def get_avg_flow_on_branch_over_time(our_res,cycle):
     # len(flow_master[0][0])
     # 6889 -- number of time steps
     # sum at each time step for each branch
-    avg_flow_master = {i:np.mean(flow_master[i], axis=0) for i in range(num_branch)}
-    avg_flow_last_cycle = {i:avg_flow_master[i][-int(len(avg_flow_master[i])/cycle):] for i in range(num_branch)}
-    return flow_master, avg_flow_master, avg_flow_last_cycle
+    
+    
+
+    avg_flow_last_cycle = {i:np.mean(last_segment_flow_over_time_for_each_branch[i][-int(len(last_segment_flow_over_time_for_each_branch[i])/cycle):], axis=0) for i in range(num_branch)}
+    
+
+    last_segment_flow_of_last_cycle = {i:last_segment_flow_over_time_for_each_branch[i][-int(len(last_segment_flow_over_time_for_each_branch[i])/cycle):] for i in range(num_branch)}
+    
+    return last_segment_flow_over_time_for_each_branch, avg_flow_last_cycle, last_segment_flow_of_last_cycle
     
 
 def get_avg_pressure_on_branch_over_time(our_res,cycle):
-        num_branch = len(our_res['pressure'])
-        pressure_master = {i:[] for i in range(num_branch)}
-        #calc average at every time step for every branch starting from 1
-        for i in range(num_branch):
-            for j in range(len(our_res['pressure'][i])):
-                for k in range(len(our_res['pressure'][i][j])):
-                    pressure_master[i].append(our_res['pressure'][i][j][k])
-        avg_pressure_master = {i:np.mean(pressure_master[i], axis=0) for i in range(num_branch)}
-        avg_pressure_last_cycle = {i:avg_pressure_master[i][-int(len(avg_pressure_master[i])/cycle):] for i in range(num_branch)}
-        return pressure_master, avg_pressure_master, avg_pressure_last_cycle
-    
-def get_avg_wss_on_branch_over_time(our_res,cycle):
-    num_branch = len(our_res['wss'])
-    wss_master = {i:[] for i in range(num_branch)}
-    #calc average at every time step for every branch starting from 1
+    num_branch = len(our_res['flow'])
+    last_segment_pressure_over_time_for_each_branch = {i:[] for i in range(num_branch)}
     for i in range(num_branch):
-        for j in range(len(our_res['wss'][i])):
-            for k in range(len(our_res['wss'][i][j])):
-                wss_master[i].append(our_res['wss'][i][j][k])
-    avg_wss_master = {i:np.mean(wss_master[i], axis=0) for i in range(num_branch)}
-    avg_wss_last_cycle = {i:avg_wss_master[i][-int(len(avg_wss_master[i])/cycle):] for i in range(num_branch)}
-    return wss_master, avg_wss_master, avg_wss_last_cycle
+            # get the last segment: cooresponding to the outlet segment
+            last_segment_pressure_over_time_for_each_branch[i].append(our_res['pressure'][i][-1][:])
+    last_segment_pressure_over_time_for_each_branch = {i:np.array(last_segment_pressure_over_time_for_each_branch[i][0]) for i in range(num_branch)}
+    avg_pressure_last_cycle = {i:np.mean(last_segment_pressure_over_time_for_each_branch[i][-int(len(last_segment_pressure_over_time_for_each_branch[i])/cycle):], axis=0) for i in range(num_branch)}
+    last_segment_pressure_of_last_cycle = {i:last_segment_pressure_over_time_for_each_branch[i][-int(len(last_segment_pressure_over_time_for_each_branch[i])/cycle):] for i in range(num_branch)}
+    return last_segment_pressure_over_time_for_each_branch, avg_pressure_last_cycle, last_segment_pressure_of_last_cycle
 
-def get_avg_Re_on_branch_over_time(our_res,cycle):
-    num_branch = len(our_res['Re'])
-    Re_master = {i:[] for i in range(num_branch)}
-    #calc average at every time step for every branch starting from 1
-    for i in range(num_branch):
-        for j in range(len(our_res['Re'][i])):
-            for k in range(len(our_res['Re'][i][j])):
-                Re_master[i].append(our_res['Re'][i][j][k])
-    avg_Re_master = {i:np.mean(Re_master[i], axis=0) for i in range(num_branch)}
-    avg_Re_last_cycle = {i:avg_Re_master[i][-int(len(avg_Re_master[i])/cycle):] for i in range(num_branch)}
-    return Re_master, avg_Re_master, avg_Re_last_cycle
 
-def get_avg_area_on_branch_over_time(our_res,cycle):
-    num_branch = len(our_res['area'])
-    area_master = {i:[] for i in range(num_branch)}
-    #calc average at every time step for every branch starting from 1
-    for i in range(num_branch):
-        for j in range(len(our_res['area'][i])):
-            for k in range(len(our_res['area'][i][j])):
-                area_master[i].append(our_res['area'][i][j][k])
-    avg_area_master = {i:np.mean(area_master[i], axis=0) for i in range(num_branch)}
-    avg_area_last_cycle = {i:avg_area_master[i][-int(len(avg_area_master[i])/cycle):] for i in range(num_branch)}
-    return area_master, avg_area_master, avg_area_last_cycle
+
 
 
 def plot_flow_in_every_branch_of_last_cycle(pred_avg_flow_last_cycle,filename,gt_avg_flow_last_cycle=None):
@@ -714,7 +687,7 @@ def plot_area_in_every_branch_of_last_cycle(pred_avg_area_last_cycle,filename, g
             plt.ylim(bottom=0)
             plt.savefig(str(filename)+'_branch_'+ str(i)+'_Area_vs_Time.png')
             plt.show()
-
+            
 def create_flow_box_plot(lst_of_data):
     # Prepare the data for plotting
      # Prepare the data for plotting
@@ -731,7 +704,7 @@ def create_flow_box_plot(lst_of_data):
     ax = sns.boxplot(x=labels, y=plot_data)
     plt.xlabel('Model Name')
     plt.ylabel('Relative Error %')
-    plt.title('Box Plot of 1D Model Flow Errors')
+    plt.title('Box Plot of 0D Model Flow Errors')
     plt.xticks(rotation=45)  # Rotating the x-axis labels for better readability
     for i, count in enumerate(counts):
         # Place the text at the mean y-position of the last 'count' points
@@ -755,16 +728,14 @@ def create_pressure_box_plot(lst_of_data):
     ax = sns.boxplot(x=labels, y=plot_data)
     plt.xlabel('Model Name')
     plt.ylabel('Relative Error %')
-    plt.title('Box Plot of 1D Model Pressure Errors')
+    plt.title('Box Plot of 0D Model Pressure Errors')
     plt.xticks(rotation=45)  # Rotating the x-axis labels for better readability
     for i, count in enumerate(counts):
         # Place the text at the mean y-position of the last 'count' points
         y_pos = sum(plot_data[i*count:(i+1)*count]) / count
         ax.text(i, y_pos, f'n={count}', horizontalalignment='center', size='x-small', color='black', weight='semibold')
 
-    plt.show()            
-
-
+    plt.show()
 
 def set_path_name():
     "path to ur result folder"
@@ -785,81 +756,71 @@ def set_path_name():
    
 
 def main():
-    result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path = set_path_name()
+    
+    def read_0d_res(fpath):
+        res = np.load(fpath, allow_pickle=True)
+        res = np.ndarray.tolist(res)
+        return res
+
+    # MLres = np.load('XXXXXXX.npy', allow_pickle=True)
+    # MLres = np.ndarray.tolist(MLres)
+        
+    # result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path = set_path_name()
     box_plot_flow_data = []
     box_plot_pressure_data = []
-    extraction_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\folder_for_result_extraction'
+    extraction_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c_0d\\ready_for_result_extraction'
     for filename in os.listdir(extraction_folder):
         model_master_folder = os.path.join(extraction_folder,filename)
-        gt_res_folder = os.path.join(model_master_folder,'gt_1d_results')
-        pred_res_folder = os.path.join(model_master_folder,'pred_1d_results')
-        print(model_master_folder)
-        if os.path.exists(gt_res_folder) and os.path.exists(pred_res_folder):
-            pred_res = read_results_1d(pred_res_folder)
-            gt_res = read_results_1d(gt_res_folder)
-
+        gt_res = os.path.join(model_master_folder,'GT_0d_solver_output_branch_results.npy')
+        pred_res = os.path.join(model_master_folder,'PRED_0d_solver_output_branch_results.npy')
+        
+        if os.path.exists(gt_res) and os.path.exists(pred_res):
+            pred_res = read_0d_res(pred_res)
+            gt_res = read_0d_res(gt_res)
+            
             ### add function to parse # of cycle
-            if filename == '0063_1001_clipped':
-                cycle = 9
+            if filename == '0063_1001_clipped_away_branch4':
+                cycle = 10
             elif filename == '0090_0001':
-                cycle = 7
+                cycle = 8
             elif filename == '0131_0000':
-                cycle = 14
+                cycle = 15
             elif filename == '0146_1001':
-                cycle = 8
+                cycle = 9
             elif filename == '0176_0000':
-                cycle = 8
-            elif filename == '0174_0000_new_clipped':
-                cycle = 16
+                cycle = 9
+            elif filename == '0174_0000_new':
+                cycle = 17
             else:
                 cycle = 6
+           
+
+            last_segment_flow_over_time_for_each_branch, avg_flow_last_cycle, last_segment_flow_of_last_cycle = get_avg_flow_on_branch_over_time(pred_res,cycle)
             
-            flow_master, avg_flow_master, avg_flow_last_cycle = get_avg_flow_on_branch_over_time(pred_res,cycle)
-            pressure_master, avg_pressure_master, avg_pressure_last_cycle = get_avg_pressure_on_branch_over_time(pred_res,cycle)
-            wss_master, avg_wss_master, avg_wss_last_cycle = get_avg_wss_on_branch_over_time(pred_res,cycle)
-            Re_master, avg_Re_master, avg_Re_last_cycle = get_avg_Re_on_branch_over_time(pred_res,cycle)
-            area_master, avg_area_master, avg_area_last_cycle = get_avg_area_on_branch_over_time(pred_res,cycle)
-
-
-            flow_master_gt, avg_flow_master_gt, avg_flow_last_cycle_gt = get_avg_flow_on_branch_over_time(gt_res,cycle)
-            pressure_master_gt, avg_pressure_master_gt, avg_pressure_last_cycle_gt = get_avg_pressure_on_branch_over_time(gt_res,cycle)
-            wss_master_gt, avg_wss_master_gt, avg_wss_last_cycle_gt = get_avg_wss_on_branch_over_time(gt_res,cycle)
-            Re_master_gt, avg_Re_master_gt, avg_Re_last_cycle_gt = get_avg_Re_on_branch_over_time(gt_res,cycle)
-            area_master_gt, avg_area_master_gt, avg_area_last_cycle_gt = get_avg_area_on_branch_over_time(gt_res,cycle)
-
-
+            last_segment_pressure_over_time_for_each_branch, avg_pressure_last_cycle, last_segment_pressure_of_last_cycle = get_avg_pressure_on_branch_over_time(pred_res,cycle)
+            
+            last_segment_flow_over_time_for_each_branch_gt, avg_flow_last_cycle_gt, last_segment_flow_of_last_cycle_gt = get_avg_flow_on_branch_over_time(gt_res,cycle)
+            last_segment_pressure_over_time_for_each_branch_gt, avg_pressure_last_cycle_gt, last_segment_pressure_of_last_cycle_gt = get_avg_pressure_on_branch_over_time(gt_res,cycle)
+            
             if filename == '0176_0000':
                 # swap branches: match gt to pred
-                avg_flow_last_cycle_gt[1], avg_flow_last_cycle_gt[2],avg_flow_last_cycle_gt[4], avg_flow_last_cycle_gt[5],avg_flow_last_cycle_gt[6] = avg_flow_last_cycle_gt[2], avg_flow_last_cycle_gt[6],avg_flow_last_cycle_gt[5], avg_flow_last_cycle_gt[4],avg_flow_last_cycle_gt[1]
-                avg_pressure_last_cycle_gt[1], avg_pressure_last_cycle_gt[2],avg_pressure_last_cycle_gt[4], avg_pressure_last_cycle_gt[5],avg_pressure_last_cycle_gt[6] = avg_pressure_last_cycle_gt[2], avg_pressure_last_cycle_gt[6],avg_pressure_last_cycle_gt[5], avg_pressure_last_cycle_gt[4],avg_pressure_last_cycle_gt[1]
-                avg_wss_last_cycle_gt[1], avg_wss_last_cycle_gt[2],avg_wss_last_cycle_gt[4], avg_wss_last_cycle_gt[5],avg_wss_last_cycle_gt[6] = avg_wss_last_cycle_gt[2], avg_wss_last_cycle_gt[6],avg_wss_last_cycle_gt[5], avg_wss_last_cycle_gt[4],avg_wss_last_cycle_gt[1]
-                avg_Re_last_cycle_gt[1], avg_Re_last_cycle_gt[2],avg_Re_last_cycle_gt[4], avg_Re_last_cycle_gt[5],avg_Re_last_cycle_gt[6] = avg_Re_last_cycle_gt[2], avg_Re_last_cycle_gt[6],avg_Re_last_cycle_gt[5], avg_Re_last_cycle_gt[4],avg_Re_last_cycle_gt[1]
-                avg_area_last_cycle_gt[1], avg_area_last_cycle_gt[2],avg_area_last_cycle_gt[4], avg_area_last_cycle_gt[5],avg_area_last_cycle_gt[6] = avg_area_last_cycle_gt[2], avg_area_last_cycle_gt[6],avg_area_last_cycle_gt[5], avg_area_last_cycle_gt[4],avg_area_last_cycle_gt[1]
+                last_segment_flow_of_last_cycle_gt[1], last_segment_flow_of_last_cycle_gt[2],last_segment_flow_of_last_cycle_gt[4], last_segment_flow_of_last_cycle_gt[5],last_segment_flow_of_last_cycle_gt[6] = last_segment_flow_of_last_cycle_gt[2], last_segment_flow_of_last_cycle_gt[6],last_segment_flow_of_last_cycle_gt[5], last_segment_flow_of_last_cycle_gt[4],last_segment_flow_of_last_cycle_gt[1]
+                last_segment_pressure_of_last_cycle_gt[1], last_segment_pressure_of_last_cycle_gt[2],last_segment_pressure_of_last_cycle_gt[4], last_segment_pressure_of_last_cycle_gt[5],last_segment_pressure_of_last_cycle_gt[6] = last_segment_pressure_of_last_cycle_gt[2], last_segment_pressure_of_last_cycle_gt[6],last_segment_pressure_of_last_cycle_gt[5], last_segment_pressure_of_last_cycle_gt[4],last_segment_pressure_of_last_cycle_gt[1]
                 
 
             if filename == '0131_0000':
                 # swap branches: match gt to pred
-                avg_flow_last_cycle_gt[3],avg_flow_last_cycle_gt[4],avg_flow_last_cycle_gt[6] = avg_flow_last_cycle_gt[6],avg_flow_last_cycle_gt[3],avg_flow_last_cycle_gt[4]
-                avg_pressure_last_cycle_gt[3],avg_pressure_last_cycle_gt[4],avg_pressure_last_cycle_gt[6] = avg_pressure_last_cycle_gt[6],avg_pressure_last_cycle_gt[3],avg_pressure_last_cycle_gt[4]
-                avg_wss_last_cycle_gt[3],avg_wss_last_cycle_gt[4],avg_wss_last_cycle_gt[6] = avg_wss_last_cycle_gt[6],avg_wss_last_cycle_gt[3],avg_wss_last_cycle_gt[4]
-                avg_Re_last_cycle_gt[3],avg_Re_last_cycle_gt[4],avg_Re_last_cycle_gt[6] = avg_Re_last_cycle_gt[6],avg_Re_last_cycle_gt[3],avg_Re_last_cycle_gt[4]
-                avg_area_last_cycle_gt[3],avg_area_last_cycle_gt[4],avg_area_last_cycle_gt[6] = avg_area_last_cycle_gt[6],avg_area_last_cycle_gt[3],avg_area_last_cycle_gt[4]
-            
+                last_segment_flow_of_last_cycle_gt[3],last_segment_flow_of_last_cycle_gt[4],last_segment_flow_of_last_cycle_gt[6] = last_segment_flow_of_last_cycle_gt[6],last_segment_flow_of_last_cycle_gt[3],last_segment_flow_of_last_cycle_gt[4]
+                last_segment_pressure_of_last_cycle_gt[3],last_segment_pressure_of_last_cycle_gt[4],last_segment_pressure_of_last_cycle_gt[6] = last_segment_pressure_of_last_cycle_gt[6],last_segment_pressure_of_last_cycle_gt[3],last_segment_pressure_of_last_cycle_gt[4]
+           
             if filename == "0146_1001":
-                avg_flow_last_cycle_gt[1], avg_flow_last_cycle_gt[2],avg_flow_last_cycle_gt[3],avg_flow_last_cycle_gt[4], avg_flow_last_cycle_gt[5],avg_flow_last_cycle_gt[6], avg_flow_last_cycle_gt[7], avg_flow_last_cycle_gt[8],avg_flow_last_cycle_gt[9] = avg_flow_last_cycle_gt[3],avg_flow_last_cycle_gt[4],avg_flow_last_cycle_gt[5],avg_flow_last_cycle_gt[6],avg_flow_last_cycle_gt[7],avg_flow_last_cycle_gt[8],avg_flow_last_cycle_gt[9],avg_flow_last_cycle_gt[1],avg_flow_last_cycle_gt[2]
-                avg_pressure_last_cycle_gt[1], avg_pressure_last_cycle_gt[2],avg_pressure_last_cycle_gt[3],avg_pressure_last_cycle_gt[4], avg_pressure_last_cycle_gt[5],avg_pressure_last_cycle_gt[6], avg_pressure_last_cycle_gt[7], avg_pressure_last_cycle_gt[8],avg_pressure_last_cycle_gt[9] = avg_pressure_last_cycle_gt[3],avg_pressure_last_cycle_gt[4],avg_pressure_last_cycle_gt[5],avg_pressure_last_cycle_gt[6],avg_pressure_last_cycle_gt[7],avg_pressure_last_cycle_gt[8],avg_pressure_last_cycle_gt[9],avg_pressure_last_cycle_gt[1],avg_pressure_last_cycle_gt[2]
-                avg_wss_last_cycle_gt[1], avg_wss_last_cycle_gt[2],avg_wss_last_cycle_gt[3],avg_wss_last_cycle_gt[4], avg_wss_last_cycle_gt[5],avg_wss_last_cycle_gt[6], avg_wss_last_cycle_gt[7], avg_wss_last_cycle_gt[8],avg_wss_last_cycle_gt[9] = avg_wss_last_cycle_gt[3],avg_wss_last_cycle_gt[4],avg_wss_last_cycle_gt[5],avg_wss_last_cycle_gt[6],avg_wss_last_cycle_gt[7],avg_wss_last_cycle_gt[8],avg_wss_last_cycle_gt[9],avg_wss_last_cycle_gt[1],avg_wss_last_cycle_gt[2]
-                avg_Re_last_cycle_gt[1], avg_Re_last_cycle_gt[2],avg_Re_last_cycle_gt[3],avg_Re_last_cycle_gt[4], avg_Re_last_cycle_gt[5],avg_Re_last_cycle_gt[6], avg_Re_last_cycle_gt[7], avg_Re_last_cycle_gt[8],avg_Re_last_cycle_gt[9] = avg_Re_last_cycle_gt[3],avg_Re_last_cycle_gt[4],avg_Re_last_cycle_gt[5],avg_Re_last_cycle_gt[6],avg_Re_last_cycle_gt[7],avg_Re_last_cycle_gt[8],avg_Re_last_cycle_gt[9],avg_Re_last_cycle_gt[1],avg_Re_last_cycle_gt[2]
-                avg_area_last_cycle_gt[1], avg_area_last_cycle_gt[2],avg_area_last_cycle_gt[3],avg_area_last_cycle_gt[4], avg_area_last_cycle_gt[5],avg_area_last_cycle_gt[6], avg_area_last_cycle_gt[7], avg_area_last_cycle_gt[8],avg_area_last_cycle_gt[9] = avg_area_last_cycle_gt[3],avg_area_last_cycle_gt[4],avg_area_last_cycle_gt[5],avg_area_last_cycle_gt[6],avg_area_last_cycle_gt[7],avg_area_last_cycle_gt[8],avg_area_last_cycle_gt[9],avg_area_last_cycle_gt[1],avg_area_last_cycle_gt[2]
+                last_segment_flow_of_last_cycle_gt[1], last_segment_flow_of_last_cycle_gt[2],last_segment_flow_of_last_cycle_gt[3],last_segment_flow_of_last_cycle_gt[4], last_segment_flow_of_last_cycle_gt[5],last_segment_flow_of_last_cycle_gt[6], last_segment_flow_of_last_cycle_gt[7], last_segment_flow_of_last_cycle_gt[8],last_segment_flow_of_last_cycle_gt[9] = last_segment_flow_of_last_cycle_gt[3],last_segment_flow_of_last_cycle_gt[4],last_segment_flow_of_last_cycle_gt[5],last_segment_flow_of_last_cycle_gt[6],last_segment_flow_of_last_cycle_gt[7],last_segment_flow_of_last_cycle_gt[8],last_segment_flow_of_last_cycle_gt[9],last_segment_flow_of_last_cycle_gt[1],last_segment_flow_of_last_cycle_gt[2]
+                last_segment_pressure_of_last_cycle_gt[1], last_segment_pressure_of_last_cycle_gt[2],last_segment_pressure_of_last_cycle_gt[3],last_segment_pressure_of_last_cycle_gt[4], last_segment_pressure_of_last_cycle_gt[5],last_segment_pressure_of_last_cycle_gt[6], last_segment_pressure_of_last_cycle_gt[7], last_segment_pressure_of_last_cycle_gt[8],last_segment_pressure_of_last_cycle_gt[9] = last_segment_pressure_of_last_cycle_gt[3],last_segment_pressure_of_last_cycle_gt[4],last_segment_pressure_of_last_cycle_gt[5],last_segment_pressure_of_last_cycle_gt[6],last_segment_pressure_of_last_cycle_gt[7],last_segment_pressure_of_last_cycle_gt[8],last_segment_pressure_of_last_cycle_gt[9],last_segment_pressure_of_last_cycle_gt[1],last_segment_pressure_of_last_cycle_gt[2]
+             
 
-
-            if filename == '0174_0000_new_clipped':
-                avg_flow_last_cycle_gt[1], avg_flow_last_cycle_gt[2],avg_flow_last_cycle_gt[3]= avg_flow_last_cycle_gt[2], avg_flow_last_cycle_gt[3],avg_flow_last_cycle_gt[1]
-                avg_pressure_last_cycle_gt[1], avg_pressure_last_cycle_gt[2],avg_pressure_last_cycle_gt[3]= avg_pressure_last_cycle_gt[2], avg_pressure_last_cycle_gt[3],avg_pressure_last_cycle_gt[1]
-                avg_wss_last_cycle_gt[1], avg_wss_last_cycle_gt[2],avg_wss_last_cycle_gt[3]= avg_wss_last_cycle_gt[2], avg_wss_last_cycle_gt[3],avg_wss_last_cycle_gt[1]
-                avg_Re_last_cycle_gt[1], avg_Re_last_cycle_gt[2],avg_Re_last_cycle_gt[3]= avg_Re_last_cycle_gt[2], avg_Re_last_cycle_gt[3],avg_Re_last_cycle_gt[1]
-                avg_area_last_cycle_gt[1], avg_area_last_cycle_gt[2],avg_area_last_cycle_gt[3]= avg_area_last_cycle_gt[2], avg_area_last_cycle_gt[3],avg_area_last_cycle_gt[1]
-            
+            if filename == '0174_0000_new':
+                last_segment_flow_of_last_cycle_gt[1], last_segment_flow_of_last_cycle_gt[2],last_segment_flow_of_last_cycle_gt[3],last_segment_flow_of_last_cycle_gt[4],last_segment_flow_of_last_cycle_gt[5] = last_segment_flow_of_last_cycle_gt[2], last_segment_flow_of_last_cycle_gt[3], last_segment_flow_of_last_cycle_gt[4], last_segment_flow_of_last_cycle_gt[5],last_segment_flow_of_last_cycle_gt[1]
+                last_segment_pressure_of_last_cycle_gt[1], last_segment_pressure_of_last_cycle_gt[2],last_segment_pressure_of_last_cycle_gt[3],last_segment_pressure_of_last_cycle_gt[4],last_segment_pressure_of_last_cycle_gt[5] = last_segment_pressure_of_last_cycle_gt[2], last_segment_pressure_of_last_cycle_gt[3], last_segment_pressure_of_last_cycle_gt[4], last_segment_pressure_of_last_cycle_gt[5],last_segment_pressure_of_last_cycle_gt[1]   
             # calculate relative error across time
             
             
@@ -868,7 +829,9 @@ def main():
                 mean_value_pred = {i:np.mean(pred_avg[i]) for i in range(1,len(pred_avg))}
                 mean_value_gt = {i:np.mean(gt_avg[i]) for i in range(1,len(gt_avg))}
                 rel_error_branch = {i:np.abs((mean_value_pred[i]- mean_value_gt[i])/mean_value_gt[i]) for i in range(1,len(pred_avg))}
-                rel_error_of_surface = np.mean([np.mean(rel_error_branch[i]) for i in range(1,len(rel_error_branch))])
+                
+                rel_error_of_surface = sum(rel_error_branch.values()) / len(rel_error_branch)
+                
                 print('relative error of ', type, ' across time is', rel_error_of_surface)
                 return rel_error_branch, rel_error_of_surface
 
@@ -882,11 +845,13 @@ def main():
     
             
             #flow
-            rel_error_mean_flow_branch, rel_error_avg_flow_surf, = calc_relative_error_across_time(avg_flow_last_cycle, avg_flow_last_cycle_gt, 'flow')
+            rel_error_mean_flow_branch, rel_error_avg_flow_surf, = calc_relative_error_across_time(avg_flow_last_cycle, last_segment_flow_of_last_cycle_gt, 'flow')
             #pressure
-            rel_error_mean_pressure_branch, rel_error_avg_pressure_surf = calc_relative_error_across_time(avg_pressure_last_cycle, avg_pressure_last_cycle_gt, 'pressure')
-            
+            rel_error_mean_pressure_branch, rel_error_avg_pressure_surf = calc_relative_error_across_time(avg_pressure_last_cycle, last_segment_pressure_of_last_cycle_gt, 'pressure')
+            print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            print(filename, "avg flow error", rel_error_avg_flow_surf, "avg pressure error", rel_error_avg_pressure_surf)
             print(filename,'flow',rel_error_mean_flow_branch,'pressure', rel_error_mean_pressure_branch)
+            print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
             for key in rel_error_mean_flow_branch:
                 rel_error_mean_flow_branch[key]*=100
             for key in rel_error_mean_pressure_branch:
@@ -895,19 +860,13 @@ def main():
 
             box_plot_flow_data.append([filename, rel_error_mean_flow_branch])
             box_plot_pressure_data.append([filename, rel_error_mean_pressure_branch])
-           
                 
-            # plot_flow_in_every_branch_of_last_cycle(avg_flow_last_cycle,filename, avg_flow_last_cycle_gt)
-            # plot_pressure_in_every_branch_of_last_cycle(avg_pressure_last_cycle,filename,avg_pressure_last_cycle_gt)
-            # plot_wss_in_every_branch_of_last_cycle(avg_wss_last_cycle,filename,avg_wss_last_cycle_gt)
-            # plot_Re_in_every_branch_of_last_cycle(avg_Re_last_cycle,filename,avg_Re_last_cycle_gt)
-            # plot_area_in_every_branch_of_last_cycle(avg_area_last_cycle,filename,avg_area_last_cycle_gt)
-            
+            # plot_flow_in_every_branch_of_last_cycle(last_segment_flow_of_last_cycle,filename, last_segment_flow_of_last_cycle_gt)
+            # plot_pressure_in_every_branch_of_last_cycle(last_segment_pressure_of_last_cycle,filename,last_segment_pressure_of_last_cycle_gt)
+         
+
         else:
             continue
-
-
-
 
     create_flow_box_plot(box_plot_flow_data)
     create_pressure_box_plot(box_plot_pressure_data)
@@ -915,186 +874,11 @@ def main():
 
 
 
-    # # # # path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0090_0001\\pred_1d_results'
-    # # # # our_res = read_results_1d(path)
-    # # # # #(Pdb) len(our_res['wss'][4][2][0])  ## 4 is branchid, 2 is segment id, 0 is No. point
-    # # # # # 6889
-    # # # # # (Pdb) len(our_res['flow'][4][2][0])
-    # # # # # 6889
-    
-    # # # # gt_res_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0090_0001\\gt_1d_results'
-    # # # # gt_res = read_results_1d(gt_res_path)
-
-    # # # # flow_master, avg_flow_master, avg_flow_last_cycle = get_avg_flow_on_branch_over_time(our_res,7)
-    # # # # pressure_master, avg_pressure_master, avg_pressure_last_cycle = get_avg_pressure_on_branch_over_time(our_res,7)
-    # # # # wss_master, avg_wss_master, avg_wss_last_cycle = get_avg_wss_on_branch_over_time(our_res,7)
-    # # # # Re_master, avg_Re_master, avg_Re_last_cycle = get_avg_Re_on_branch_over_time(our_res,7)
-    # # # # area_master, avg_area_master, avg_area_last_cycle = get_avg_area_on_branch_over_time(our_res,7)
 
 
-    # # # # flow_master_gt, avg_flow_master_gt, avg_flow_last_cycle_gt = get_avg_flow_on_branch_over_time(gt_res,7)
-    # # # # pressure_master_gt, avg_pressure_master_gt, avg_pressure_last_cycle_gt = get_avg_pressure_on_branch_over_time(gt_res,7)
-    # # # # wss_master_gt, avg_wss_master_gt, avg_wss_last_cycle_gt = get_avg_wss_on_branch_over_time(gt_res,7)
-    # # # # Re_master_gt, avg_Re_master_gt, avg_Re_last_cycle_gt = get_avg_Re_on_branch_over_time(gt_res,7)
-    # # # # area_master_gt, avg_area_master_gt, avg_area_last_cycle_gt = get_avg_area_on_branch_over_time(gt_res,7)
-
-
-    # # # # plot_flow_in_every_branch_of_last_cycle(avg_flow_last_cycle,avg_flow_last_cycle_gt)
-    # # # # plot_pressure_in_every_branch_of_last_cycle(avg_pressure_last_cycle,avg_pressure_last_cycle_gt)
-    # # # # plot_wss_in_every_branch_of_last_cycle(avg_wss_last_cycle,avg_wss_last_cycle_gt)
-    # # # # plot_Re_in_every_branch_of_last_cycle(avg_Re_last_cycle,avg_Re_last_cycle_gt)
-    # # # # plot_area_in_every_branch_of_last_cycle(avg_area_last_cycle,avg_area_last_cycle_gt)
-
-    
-
-    # # # # path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0176_0000\\pred_1d_results'
-    # # # # our_res = read_results_1d(path)
-    # # # # #(Pdb) len(our_res['wss'][4][2][0])  ## 4 is branchid, 2 is segment id, 0 is No. point
-    # # # # # 6889
-    # # # # # (Pdb) len(our_res['flow'][4][2][0])
-    # # # # # 6889
-    
-    # # # # gt_res_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0176_0000\\gt_1d_results'
-    # # # # gt_res = read_results_1d(gt_res_path)
-
-    # # # # flow_master, avg_flow_master, avg_flow_last_cycle = get_avg_flow_on_branch_over_time(our_res,8)
-    # # # # pressure_master, avg_pressure_master, avg_pressure_last_cycle = get_avg_pressure_on_branch_over_time(our_res,8)
-    # # # # wss_master, avg_wss_master, avg_wss_last_cycle = get_avg_wss_on_branch_over_time(our_res,8)
-    # # # # Re_master, avg_Re_master, avg_Re_last_cycle = get_avg_Re_on_branch_over_time(our_res,8)
-    # # # # area_master, avg_area_master, avg_area_last_cycle = get_avg_area_on_branch_over_time(our_res,8)
-
-
-    # # # # flow_master_gt, avg_flow_master_gt, avg_flow_last_cycle_gt = get_avg_flow_on_branch_over_time(gt_res,8)
-    # # # # pressure_master_gt, avg_pressure_master_gt, avg_pressure_last_cycle_gt = get_avg_pressure_on_branch_over_time(gt_res,8)
-    # # # # wss_master_gt, avg_wss_master_gt, avg_wss_last_cycle_gt = get_avg_wss_on_branch_over_time(gt_res,8)
-    # # # # Re_master_gt, avg_Re_master_gt, avg_Re_last_cycle_gt = get_avg_Re_on_branch_over_time(gt_res,8)
-    # # # # area_master_gt, avg_area_master_gt, avg_area_last_cycle_gt = get_avg_area_on_branch_over_time(gt_res,8)
-
-
-    # # # # plot_flow_in_every_branch_of_last_cycle(avg_flow_last_cycle,avg_flow_last_cycle_gt)
-    # # # # plot_pressure_in_every_branch_of_last_cycle(avg_pressure_last_cycle,avg_pressure_last_cycle_gt)
-    # # # # plot_wss_in_every_branch_of_last_cycle(avg_wss_last_cycle,avg_wss_last_cycle_gt)
-    # # # # plot_Re_in_every_branch_of_last_cycle(avg_Re_last_cycle,avg_Re_last_cycle_gt)
-    # # # # plot_area_in_every_branch_of_last_cycle(avg_area_last_cycle,avg_area_last_cycle_gt)
-    
-
-    
-            
-
-
-    gt_res_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\results_1d\\0090_0001.npy'
-    #save_dict_to_csv(our_res, 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\1d_results\\1d_results.csv')
-    # save_dict_to_csv(gt_dic, 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\1d_results\\1d_gt_results.csv')
-    #gt_dic = np.load(gt_res_path, allow_pickle=True).item()
-
-    # our_res.keys()
-    # >>>dict_keys(['pressure', 'wss', 'Re', 'area', 'params', 'flow'])
-    # (Pdb) our_res.keys()
-    # dict_keys(['Re', 'flow', 'wss', 'area', 'pressure', 'params'])
-    # (Pdb) our_res['Re'].keys()
-    # dict_keys([0, 1, 2, 3, 4, 5, 6])
-    # (Pdb) our_res['Re'][0].keys()
-    # dict_keys([0])
-    # (Pdb) our_res['Re'][2].keys()
-    # dict_keys([0, 1, 2])
-    
-    
-    #our_cent  = read_polydata('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0090_0001\\export_PRED_ROM_ready_surface.vtp')
-    #gt_cent = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\centerlines\\0176_0000.vtp')
-    inflow = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0090_0001\\pred_inflow_files\\inflow_1d.flow'
-
-
-    
-    
-
-
-    # out_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0090_0001\\extracted_pred_centerlines\\result_from_program'
-    # our_cent_path  = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0090_0001\\extracted_pred_centerlines.vtp'
-    # res_folder = path
-    # pdb.set_trace()
-    # last_res_dic, last_rom_cl_path = pipeline_mapping_last_t_step_1d_res_to_cl(res_folder,our_cent_path,inflow,out_folder,'last_t_step_mapped.vtp')
-    # #(Pdb) last_res_dic.keys()
-    # #dict_keys(['params', 'wss', 'pressure', 'Re', 'flow', 'area'])
-    # dic, cl_path = pipeline_mapping_1d_res_to_cl(res_folder,our_cent_path,inflow,out_folder,'all_t_step_mapped.vtp')
-    
-
-
-    # gt_rom_cl_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis\\0176_0000_gt_res_mapped.vtp'
-    # data = get_data_at_caps(last_rom_cl_path)
-    # gt_data = get_data_at_caps(gt_rom_cl_path)
-
-
-    #--------------------- map 1d to 3d --------------#
-    # see Oned_to_3d_projection.py
-
-
-
-
-    
-    # visualize results results_1d into 
 
 
 main()
 
 
 
-# (Pdb) arrays_cent, _ = get_all_arrays(geo_cent)
-# (Pdb) arrays_cent
-# {'Path': array([ 0.        ,  0.52026405,  1.04052893, ..., 20.91086214,
-#        21.30466263, 21.69846121]), 'CenterlineSectionNormal': array([[ 0.02004773, -0.20664808,  0.97820991],
-#        [-0.0342225 , -0.20406785,  0.97835839],
-#        [-0.0883917 , -0.20088523,  0.97561879],
-#        ...,
-#        [ 0.09778827,  0.1008527 , -0.99008393],
-#        [ 0.09520385,  0.05995264, -0.9936508 ],
-#        [ 0.09245833,  0.01895114, -0.99553621]]), 'BranchIdTmp': array([0, 0, 0, ..., 8, 8, 8]), 'CenterlineSectionShape': array([0.93048108, 0.98468026, 0.9721108 , ..., 0.98652437, 0.97228775,
-#        0.93092067]), 'CenterlineSectionArea': array([4.54488055, 4.48729457, 4.22246703, ..., 3.44803698, 3.520767  ,
-#        3.5627084 ]), 'BifurcationId': array([-1, -1, -1, ..., -1, -1, -1], dtype=int64), 'CenterlineSectionMinSize': array([2.3428125 , 2.38708161, 2.33043105, ..., 2.12572651, 2.11818438,
-#        2.0400351 ]), 'BifurcationIdTmp': array([-1, -1, -1, ..., -1, -1, -1]), 'CenterlineSectionMaxSize': array([2.51785078, 2.42422004, 2.39728954, ..., 2.15476331, 2.1785571 ,
-#        2.1914167 ]), 'MaximumInscribedSphereRadius': array([1.06212353, 1.06212353, 1.06212353, ..., 0.97062236, 0.97062236,
-#        0.97062236]), 'CenterlineId': array([[1, 1, 1, 1, 1],
-#        [1, 1, 1, 1, 1],
-#        [1, 1, 1, 1, 1],
-#        ...,
-#        [0, 0, 0, 0, 1],
-#        [0, 0, 0, 0, 1],
-#        [0, 0, 0, 0, 1]]), 'GlobalNodeId': array([   0,    1,    2, ..., 1493, 1494, 1495]), 'BranchId': array([0, 0, 0, ..., 6, 6, 6], dtype=int64), 'CenterlineSectionBifurcation': array([0, 0, 0, ..., 0, 0, 0]), 'CenterlineSectionClosed': array([1, 1, 1, ..., 1, 1, 1])}
-# (Pdb) array_f = np.zeros((arrays_cent['Path'].shape[0], len(t_vec)))
-# *** NameError: name 't_vec' is not defined
-# (Pdb) t_vec = time['1d']
-# (Pdb) array_f = np.zeros((arrays_cent['Path'].shape[0], len(t_vec)))
-# (Pdb) n_outlet = np.zeros(arrays_cent['Path'].shape[0])
-
-
-
-
-    # time_inflow, _ = get_inflow_smooth(inflow)
-
-    # result_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\result_analysis'
-
-    # time = {}
-    # res = defaultdict(lambda: defaultdict(dict))
-    # f_res_1d = gt_dic
-    # f_oned = gt_cent
-    
-    # collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
-    # # getT = get_time('1d', gt_dic, time,t_in=0.8)
-
-    
-    # arrays = map_rom_to_centerline('1d', gt_cent, res, time, only_last=True)
-    # f_out  = os.path.join(result_folder, '0176_0000_gt_res_mapped.vtp')
-
-    # write_results(f_out, gt_cent, arrays, only_last=True)
-
-    # # our res
-    # time = {}
-    # res = defaultdict(lambda: defaultdict(dict))
-    # f_res_1d = our_res
-    # f_oned = read_polydata('C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2023_fall\\Pipeline_testing_result\\pipeline_till_simulation_testing\\final_assembly_original_0176_0000_3d_fullres_0_393__surface\\extracted_centerlines.vtp')
-    # collect_results('1d', res, time, f_res_1d, f_oned, t_in=time_inflow[-1])
-    # arrays = map_rom_to_centerline('1d', f_oned, res, time, only_last=True)
-    # f_out  = os.path.join(result_folder, '0176_0000_OUR_res_mapped.vtp')
-    # write_results(f_out, our_cent, arrays, only_last=True)
-
-    
-    

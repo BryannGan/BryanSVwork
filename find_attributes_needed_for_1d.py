@@ -984,7 +984,7 @@ def set_path_name():
 def main():
     result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path = set_path_name()
     #pd = read_geo('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0063_1001_rerun\\export_PRED_ROM_ready_surface_modified.vtp')
-    path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes'
+    path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes\\0d'
     model_name = '0176_0000'
 
     def setup_PRED_ROM_parameters(path,model_name,order):
@@ -1004,18 +1004,64 @@ def main():
             Params.outflow_bc_file =  os.path.join(path,'pred_inflow_files\\')
             # create own .dat file? 
             Params.uniform_bc = False
+        elif order == 0:
+            Params = Parameters() # put everything is params
+            Params.density = 1.06
+            Params.output_directory = path
+            Params.boundary_surfaces_dir = os.path.join(path,'pred_boundary_faces')
+            Params.inlet_face_input_file = 'inlet.vtp'
+            Params.centerlines_output_file = os.path.join(path,'extracted_pred_centerlines.vtp')
+            Params.surface_model = os.path.join(path,'export_PRED_ROM_ready_surface.vtp')
+            Params.inflow_input_file = os.path.join(path,'pred_inflow_files','inflow_1d.flow')
+            Params.model_order = 0
+            Params.solver_output_file = 'PRED_0d_solver_output.in' # need this to write out the solver file
+            Params.model_name = model_name
+            Params.outflow_bc_type = 'rcr' #rcr, resistance or coronary vmr 3d sim uses this and it calls 
+            Params.outflow_bc_file =  os.path.join(path,'pred_inflow_files\\')
+            # create own .dat file? 
+            Params.uniform_bc = False
+            #watch out!
+            Params.model_order= 0
             return Params
 
-    Params = setup_PRED_ROM_parameters(path,model_name,1)
+    Params = setup_PRED_ROM_parameters(path,model_name,0)
     Cl = Centerlines()
-    try:
-        Cl.extract_center_lines(Params)
-    except:
-        print('error in extracting centerlines')
+    #Cl.extract_center_lines(Params)
+    cl_pd = read_polydata('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes\\0d\\extracted_pred_centerlines.vtp')
+
+    
+    #cl_pd.GetPointData().RemoveArray('BifurcationId')
+    cl_pd.GetPointData().RemoveArray('BifurcationIdTmp')
+    #cl_pd.GetPointData().RemoveArray('BranchId')
+    cl_pd.GetPointData().RemoveArray('BranchIdTmp')
+    #cl_pd.GetPointData().RemoveArray('CenterlineSectionArea')
+    cl_pd.GetPointData().RemoveArray('CenterlineSectionBifurcation')
+    cl_pd.GetPointData().RemoveArray('CenterlineSectionClosed')
+    cl_pd.GetPointData().RemoveArray('CenterlineSectionMaxSize')
+    cl_pd.GetPointData().RemoveArray('CenterlineSectionMinSize')
+    #cl_pd.GetPointData().RemoveArray('CenterlineSectionNormal')
+    cl_pd.GetPointData().RemoveArray('CenterlineSectionShape')
+    cl_pd.GetPointData().RemoveArray('MaximumInscribedSphereRadius')
+
+
+    # write modified centerline
+    write_polydata('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes\\0d\\modifed_cl.vtp',cl_pd)
+    # pdb.set_trace()
+
+
+    Cl.geometry = cl_pd
+    # try:
+    #     Cl.extract_center_lines(Params)
+    # except:
+    #     print('error in extracting centerlines')
     msh = mesh.Mesh()
-    # msh.outlet_face_names_file = os.path.join(path,'centerline_outlets.dat')
+        
+    Params.outlet_face_names_file = os.path.join(path,'centerlines_outlets.dat')
+    pdb.set_trace()
     msh.generate(Params,Cl) 
-    print('solver input file generated')
+    print('!!!!DONE!!!!!!')
+
+    
     # martin_1d_input = os.path.join(martin_1d_input_path, model_name+'_1d.in')
     # reparse_solver_input_use_martins(martin_1d_input, os.path.join(path,'pred_1d_solver_output_redo.in'))
 
