@@ -82,6 +82,8 @@ def create_spheres_at_coordinates(coords, radius=1.0):
 def setup():
     pd_path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\centerline_fm_0176_0000.vtp'
     pd = read_polydata(pd_path)
+    surface_pd = read_polydata('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\processed_0176_surface.vtp')
+    surface_pd = bryan_fillholes(surface_pd)
     ######## cross check ##############################
     gtcl_path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes\\extracted_pred_centerlines.vtp'
     gtclpd = read_polydata(gtcl_path)
@@ -99,7 +101,8 @@ def setup():
     # all length = 1554 - number of points in the cl
 
     # get lines and save each cell
-    dict_cell = {}
+    dict_cell = {}  # key = cell number; value = [vtkPolyLine, [pt1, pt2, ...]]
+    distance_lst = [[0, 0, 0] for _ in range(pd.GetNumberOfCells())] # [distance, vtkPolyLine, [pt1, pt2, ...]]
     for i in range(pd.GetNumberOfCells()):
         # key = i; value = 
         cell = pd.GetCell(i)
@@ -109,22 +112,35 @@ def setup():
         points = pd.GetPoints()
         init_pt_array = [0]*num_points
 
+        
+        
         for j in range(num_points):
             point_id = cell.GetPointId(j)
             point = points.GetPoint(point_id)
             init_pt_array[j] = point
+            # calculated cumulative distance for each line
+            if j > 0:
+                distance_lst[i][0] += np.linalg.norm(np.array(init_pt_array[j]) - np.array(init_pt_array[j-1]))
 
         # reverse the coordinate ordering due to Eikonal equation
         init_pt_array = init_pt_array[::-1]
+        distance_lst[i][1] = cell
+        distance_lst[i][2] = init_pt_array
+    
+    # sort the distance_lst based on the first index
+    # re-order dict_cell content base on distance (from longest to shortest)
+    distance_lst = sorted(distance_lst, key=lambda x: x[0], reverse=True)
+    
 
+
+    # dict_cell[0] has the longest distance
+    for i in range(len(distance_lst)): 
         # save the cell [vtp cell, pt coordinates]
         dict_cell[i] = []
-        dict_cell[i].append(cell)
+        dict_cell[i].append(distance_lst[i][1])
         #dict_cell[i].append(points)
-        dict_cell[i].append(init_pt_array)
-        
-    
-    return pd, gtclpd, dict_gt_attributes, dict_cell
+        dict_cell[i].append(distance_lst[i][2])
+    return pd, gtclpd, dict_gt_attributes, dict_cell,surface_pd
  
 # def create_polydata_from_coordinates(coords):
 #     # Create a vtkPoints object and insert the coordinates
@@ -246,9 +262,9 @@ def subdivide_coordinates_with_cubic_spline(coords, subdivision_factor=10):
     return subdivided_coords
 
 
-def process_pts(dict_cell, bfpt):
+def process_pts(dict_cell):
     #
-    # this function gets all the points in the centerline and eliminates duplicates
+    # this function gets all the points of the centerlines
     #
     all_pts = []
     for i in range(len(dict_cell)):
@@ -358,6 +374,7 @@ def get_CenterlineId(mst_pts,dict_cell,mst_polydata):
     CenterlineId[CenterlineId == -1] = 0
     return CenterlineId
 
+
         
 def get_connectivity(mst_polydata):
     # get the connectivity of the mst_polydata
@@ -456,69 +473,7 @@ def get_connectivity(connected_pointId_pair):
 
     return dict
     
-
-
-
-
-if __name__ == '__main__':
-    pd, gtclpd, dict_gt_attributes, dict_cell = setup()
-    
-    bfpt = get_bifurcation_pts(dict_cell)
-    sphere = create_spheres_at_coordinates(bfpt, radius=0.3)
-    #write_polydata(sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\bifurcation_pts.vtp')
-    
-    ### process points
-    all_pts = process_pts(dict_cell, bfpt)
-    junction, junction_pts = get_bifurcation_junctions(all_pts, bfpt)
-
-    # get all_pts into a polydata
-    all_pts_pd = create_polydata_from_coordinates(all_pts)
-    # all_pts_sphere = create_spheres_at_coordinates(all_pts, radius=0.2)
-    # write_polydata(all_pts_sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\all_pts.vtp')
-    
-    # MST
-    mst_polydata = numi_MST(all_pts_pd)
-    # get points based on id
-    mst_pts = v2n(mst_polydata.GetPoints().GetData())
-    mst_pts = mst_pts.tolist()
-    mst_pts = [tuple(pt) for pt in mst_pts]
-    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst.vtp')
-
-    # #MST not working at the moment, so lets use gt points
-    # # make np array to list then tuple
-    # gtpts = dict_gt_attributes['all_pts'].tolist()
-    # gtpts = [tuple(pt) for pt in gtpts]
-    junction, junction_pts = get_bifurcation_junctions(mst_pts, bfpt, radius=1)
-    #junction_pts_sphere = create_spheres_at_coordinates(junction_pts, radius=0.2)
-    #write_polydata(junction_pts_sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\junction_pts.vtp')
-
-    # get BifurcationId
-    BifurcationId = get_BifurcationId(mst_pts, junction)
-    # add BifurcationId to mst_polydata
-    add_attributes('BifurcationId',BifurcationId,mst_polydata)
-    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId.vtp')
-
-    # get GlobalNodeId
-    GlobalNodeId = np.arange(len(mst_pts))
-    # add GlobalNodeId to mst_polydata
-    add_attributes('GlobalNodeId',GlobalNodeId,mst_polydata)
-    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId_GlobalNodeId.vtp')
-
-    # get CenterlineId
-    CenterlineId = get_CenterlineId(mst_pts,dict_cell,mst_polydata)
-    add_attributes('CenterlineId',CenterlineId,mst_polydata)
-    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId_GlobalNodeId_CenterlineId_ver2.vtp')
-    
-    # get BranchId
-    pairs = get_connected_point_id(mst_polydata,mst_pts) #[[0, 36], [1, 79], [1, 164], [3, 99], [3, 159]] paris of global nodel ID
-    count_pt_appearance = get_connectivity(pairs) #[[0, 2], [1, 2], [2, 2], [3, 2]] -> [global nodel id, time appeared (1 means its endpt, >2 means its a junction)]
-    endpts_id = [count_pt_appearance[i][0] for i in range(len(count_pt_appearance)) if count_pt_appearance[i][1] == 1]
-    endpts_coord = [mst_pts[i] for i in endpts_id]
-    endpts_sphere = create_spheres_at_coordinates(endpts_coord, radius=0.2)
-    write_polydata(endpts_sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\endpts.vtp')
-
-    pdb.set_trace()
-    def get_BranchId(mst_pts,junction_pts,junction,dict_cell,mst_polydata):
+def get_BranchId(mst_pts,junction_pts,junction,dict_cell,mst_polydata):
         BranchId = np.ones(len(mst_pts),dtype=np.int64)
         BranchId = BranchId*-2
         #start tracing from centerlineId 0->n
@@ -563,79 +518,304 @@ if __name__ == '__main__':
                         
         
         return BranchId
-                        
+
+def get_BranchId_and_Path(mst_pts,junction_pts,junction,dict_cell,mst_polydata):
+        """
+        added get_path to function get_BranchId
+        """
+        ### variables to calculate Path ###
+        Path = np.ones(len(mst_pts))
+        Path = Path*-5
+        last_pt_coord = 0
+        Path_to_write = 0
+        Path_at_junction = 0
+        ##################################
+
+        BranchId = np.ones(len(mst_pts),dtype=np.int64)
+        BranchId = BranchId*-2
+        #start tracing from centerlineId 0->n
+        # find cloest point via dict_cell
+        length_of_each_index = len(dict_cell.keys())
+        if dict_cell[0][1][0] in junction_pts:  # see if the starting point of all centerline is a junction
+            index = -1 # becuase moving out of junction, index increases by 1 --> the first branch id is 0
+        else: 
+            index = 0 # when not moving out of a junction, BranchId index starts with 0
+        junction_index = -1
+        last_pt_is_in_junction = False
+        last_pt_is_an_endpt = False
+        for i in range(length_of_each_index): # iterate over each each cell(each centerlne) and find closet point in mst_polydata
+                for j in range(len(dict_cell[i][1])): # iterate over each point of the centerline
+                    
+                    
+                    coord = findclosestpoint(mst_polydata,dict_cell[i][1][j])
+                    if j == 0: 
+                        last_pt_coord = coord #for calculating path at the first point of the centerline
+
+                    ### see how condition/ what to write
+                    # if its in a bifurcation juntion
+                    if coord in junction_pts:                         
+                        # get branch id
+                        # find coord in mst_pts
+                        for k in range(len(mst_pts)):
+                            if coord == mst_pts[k] and BranchId[k]==-2:
+                                print(junction_index)
+                                BranchId[k] = junction_index # -1
+                        last_pt_is_in_junction = True
+
+                        # get Path
+                        for k in range(len(mst_pts)):
+                            if coord == mst_pts[k] and Path[k]==-5:
+                                Path_to_write = 0                                
+                                Path[k] = Path_to_write
+                                last_pt_coord = coord
+
+                    ### if its an endpt
+                    elif coord in endpts_coord: 
+                        # get BranchId                        
+                        for k in range(len(mst_pts)):
+                            if coord == mst_pts[k] and BranchId[k]==-2:
+                                if last_pt_is_in_junction == True:
+                                    index += 1
+                                print(index)
+                                BranchId[k] = index
+                        last_pt_is_an_endpt = True
+
+                        # get Path
+                        for k in range(len(mst_pts)):
+                            if coord == mst_pts[k] and Path[k]==-5:
+                                Path_to_write += np.linalg.norm(np.array(coord) - np.array(last_pt_coord))
+                                # accumulate path
+                                Path[k] = Path_to_write
+                                last_pt_coord = coord
+                                Path_to_write = 0 # reset Path_to_write bc will start from 0 at the next branch
 
 
+                    else:
+                        # write branchId and path the same time b/c find branchid would edit last_pt_is_in_junction and last_pt_is_an_endpt
+                        for k in range(len(mst_pts)):
+                            if coord == mst_pts[k] and BranchId[k]==-2:
+                                if last_pt_is_in_junction == True or last_pt_is_an_endpt == True:
+                                    index += 1
+                                    last_pt_is_in_junction = False
+                                    last_pt_is_an_endpt = False                                    
+                                print(index)
+                                BranchId[k] = index
+                                
+                        # get Path
+                        for k in range(len(mst_pts)):
+                            if coord == mst_pts[k] and Path[k]==-5:                        
+                                Path_to_write += np.linalg.norm(np.array(coord) - np.array(last_pt_coord))
+                                # accumulate path
+                                Path[k] = Path_to_write
+                                last_pt_coord = coord       
+        
+        return BranchId, Path
+
+
+def get_CenterlineSectionNormal(dict_cell,mst_pts):
+    # get the normal of each point
+    CenterlineSectionNormal = np.zeros((len(mst_pts),3))
+    for i in range(len(dict_cell)):
+        pts = dict_cell[i][1]   
+        for j in range(len(pts)):
+                if j == len(pts)-1:
+                    CenterlineSectionNormal[mst_pts.index(pts[j])] = CenterlineSectionNormal[mst_pts.index(pts[j-1])]
+                else: 
+                    CenterlineSectionNormal[mst_pts.index(pts[j])] = np.array(pts[j+1]) - np.array(pts[j])
+    for i in range(len(CenterlineSectionNormal)):
+        CenterlineSectionNormal[i] = CenterlineSectionNormal[i]/ np.linalg.norm(CenterlineSectionNormal[i])
+    
+    return CenterlineSectionNormal
+    
+def bryan_fillholes(pd):
+    # Fill the holes
+    fill = vtk.vtkFillHolesFilter()
+    fill.SetInputData(pd)
+    fill.SetHoleSize(100000.0)
+    fill.Update()
+    return fill.GetOutput()
+
+if __name__ == '__main__':
+    pd, gtclpd, dict_gt_attributes, dict_cell,surface_pd = setup()
+    
+    def subdivide_update_dict_cell(dict_cell):
+        
+        # subdivide
+        for i in range(len(dict_cell)):
+            pts = dict_cell[i][1]
+            #subdivide
+            pts = subdivide_coordinates_with_cubic_spline(pts,2)
+            dict_cell[i][1] = pts
+            # create polydata using new pts
+            polydata = create_polydata_from_coordinates(pts)
+            # update dict_cell
+            dict_cell[i][0] = polydata
+
+        return dict_cell
+    
+    def delete_close_pts_update_dict_cell(dict_cell,cluster_radius=0.15):
+        # delete close points
+        all_pts = process_pts(dict_cell)
+        for i in range(len(all_pts)):  
+            for j in range(len(all_pts)):
+                if np.linalg.norm(np.array(all_pts[i]) - np.array(all_pts[j])) < cluster_radius and i != j:
+                    # make them 'X' so that they can be deleted
+                    all_pts[j] = 0
+        # delete 'X'
+        all_pts = [pt for pt in all_pts if pt != 0]
+
+        # update dict_cell coords
+        for i in range(len(dict_cell)):
+            for j in range(len(dict_cell[i][1])):
+                if dict_cell[i][1][j] not in all_pts:
+                    dict_cell[i][1][j] = 0
+            dict_cell[i][1] = [pt for pt in dict_cell[i][1] if pt != 0]
+        
+        # update dict_cell polydata
+        for i in range(len(dict_cell)):
+            dict_cell[i][0] = create_polydata_from_coordinates(dict_cell[i][1])
+
+        return dict_cell
+    
+    
+    #dict_cell = subdivide_update_dict_cell(dict_cell)
+    #dict_cell = delete_close_pts_update_dict_cell(dict_cell,0.15)
+
+    bfpt = get_bifurcation_pts(dict_cell)
+    sphere = create_spheres_at_coordinates(bfpt, radius=0.3)
+    #write_polydata(sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\bifurcation_pts.vtp')
+    
+    ### process points
+    all_pts = process_pts(dict_cell)
+    junction, junction_pts = get_bifurcation_junctions(all_pts, bfpt)
+
+    # get all_pts into a polydata
+    all_pts_pd = create_polydata_from_coordinates(all_pts)
+    # all_pts_sphere = create_spheres_at_coordinates(all_pts, radius=0.2)
+    # write_polydata(all_pts_sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\all_pts.vtp')
+    
+    # MST
+    mst_polydata = numi_MST(all_pts_pd)
+    # get points based on id
+    mst_pts = v2n(mst_polydata.GetPoints().GetData())
+    mst_pts = mst_pts.tolist()
+    mst_pts = [tuple(pt) for pt in mst_pts]
+    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst.vtp')
+
+    # #MST not working at the moment, so lets use gt points
+    # # make np array to list then tuple
+    # gtpts = dict_gt_attributes['all_pts'].tolist()
+    # gtpts = [tuple(pt) for pt in gtpts]
+    junction, junction_pts = get_bifurcation_junctions(mst_pts, bfpt, radius=1)
+    #junction_pts_sphere = create_spheres_at_coordinates(junction_pts, radius=0.2)
+    #write_polydata(junction_pts_sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\junction_pts.vtp')
+
+    # get BifurcationId
+    BifurcationId = get_BifurcationId(mst_pts, junction)
+    # add BifurcationId to mst_polydata
+    add_attributes('BifurcationId',BifurcationId,mst_polydata)
+    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId.vtp')
+
+    # get GlobalNodeId
+    GlobalNodeId = np.arange(len(mst_pts))
+    # add GlobalNodeId to mst_polydata
+    add_attributes('GlobalNodeId',GlobalNodeId,mst_polydata)
+    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId_GlobalNodeId.vtp')
+
+    # get CenterlineId
+    CenterlineId = get_CenterlineId(mst_pts,dict_cell,mst_polydata)
+    add_attributes('CenterlineId',CenterlineId,mst_polydata)
+    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId_GlobalNodeId_CenterlineId_ver2.vtp')
+    
+    # get BranchId ------
+
+        # get end pts
+    pairs = get_connected_point_id(mst_polydata,mst_pts) #[[0, 36], [1, 79], [1, 164], [3, 99], [3, 159]] paris of global nodel ID
+    count_pt_appearance = get_connectivity(pairs) #[[0, 2], [1, 2], [2, 2], [3, 2]] -> [global nodel id, time appeared (1 means its endpt, >2 means its a junction)]
+    endpts_id = [count_pt_appearance[i][0] for i in range(len(count_pt_appearance)) if count_pt_appearance[i][1] == 1]
+    endpts_coord = [mst_pts[i] for i in endpts_id]
+    endpts_sphere = create_spheres_at_coordinates(endpts_coord, radius=0.2)
+    write_polydata(endpts_sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\endpts.vtp')
+
+    
     BranchId = get_BranchId(mst_pts,junction_pts,junction,dict_cell,mst_polydata)
-    add_attributes('BranchId',BranchId,mst_polydata)
-    write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId_GlobalNodeId_CenterlineId_BranchId.vtp')
+    add_attributes('BranchId',BranchId,mst_polydata) # FREAKING WORKED!
+    #write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId_GlobalNodeId_CenterlineId_BranchId.vtp')
     
+    BranchId2,Path = get_BranchId_and_Path(mst_pts,junction_pts,junction,dict_cell,mst_polydata)
+    add_attributes('Path',Path,mst_polydata) 
+   
 
-    
+    CenterlineSectionNormal = get_CenterlineSectionNormal(dict_cell,mst_pts)
+    add_attributes('CenterlineSectionNormal',CenterlineSectionNormal,mst_polydata)
+    write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId_GlobalNodeId_CenterlineId_BranchId_Path_CenterlineSectionNormal.vtp')
 
 
-
-
-    # def get_BranchId(pairs, count,mst_pts,junction_pts,junction): # this is wrong. this only trace from outside in (from a endpt to a bifurcation pt)
-    #     # find end points
-    #     endpts = []
-    #     for i in count:
-    #         if i[1] == 1:
-    #             endpts.append([i[0],mst_pts[i[0]]]) # [global node id, coordinate]
-    #     # start from an end point, use connected_pointId_pair to construct a "linked list of coordinates"
-    #     dict_for_each_branch = {}
-    #     for endpt in endpts:
-    #         current = endpt[1]
-    #         dict_for_each_branch[endpt[1]] = [current]
-            
-    #         while True:
-    #             found = False
-                
-    #             for point in dict_for_each_branch[endpt[1]]:
-    #                 if point in mst_pts:
-    #                     print(f"Point {point} found in both lists.")
-    #                     found = True
-    #                     break
-    #             if found:
-    #                 break
-
-    #             dict_for_each_branch[endpt].append(current)
-    #             for pair in pairs:
-    #                 if current in pair:
-    #                     if pair[0] == current:
-    #                         current = pair[1]
-    #                     else:
-    #                         current = pair[0]
-    #                     break
-                        
-    #     return dict_for_each_branch
-    #pdb.set_trace()
-    
-    # # Create the connectivity filter
-    # connectivityFilter = vtk.vtkConnectivityFilter()
-    # connectivityFilter.SetInputData(mst_polydata)
-    # connectivityFilter.SetExtractionModeToAllRegions()
-    # connectivityFilter.ColorRegionsOn()
-    # connectivityFilter.Update()
-    # connectivity = connectivityFilter.GetOutput()
-    # # get the number of regions
-    # num_regions = connectivity.GetNumberOfCells()
-    # pdb.set_trace()
-    # # create branch id
-    # BranchId = np.zeros(len(mst_pts),dtype=np.int64)
-    # for i in range(num_regions):
-    #     region = connectivity.GetCellData().GetArray('RegionId').GetTuple1(i)
-    #     for j in range(len(mst_pts)):
-    #         if region == CenterlineId[j][0]:
-    #             BranchId[j] = i
 
     pdb.set_trace()
-    #junction_pts_sphere = create_spheres_at_coordinates(junction_pts, radius=0.2)
-    #write_polydata(junction_pts_sphere, 'c:\\Users\\bygan\\Documents\\Research_acft_Cal\\Shadden_lab_w_Numi\\2024_spring\\junction_pts.vtp')
+    def get_CenterlineSectionArea(mst_pts,CenterlineSectionNormal,surface_pd):
+        """
+        create a plane/slice at each point base on CenterlineSectionNormal
+        use the surface clipped by the plane to get enclosed area(s)
+        only include the area that has the orgin of the plane
+        there should be a value at each point
+        """
+        def calculate_polygon_area(points):
+            """
+            Calculate the area of a polygon using the shoelace formula.
+            Points should be a 2D array of shape (N, 2), where N is the number of points.
+            """
+            n = len(points)
+            area = 0.0
+            for i in range(n):
+                x1, y1 = points[i]
+                x2, y2 = points[(i + 1) % n]
+                area += x1 * y2 - x2 * y1
+            return abs(area) / 2.0
 
-    # mst_polydata = create_mst_polydata(all_pts)
-    # writer = vtk.vtkXMLPolyDataWriter()
-    # writer.SetFileName('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst.vtp')
-    # writer.SetInputData(mst_polydata)
-    # writer.Update()
-    # writer.Write()
+        # get the cross sectional area of the polydata at each point
+        CenterlineSectionArea = np.zeros(len(mst_pts))
+        for i in range(len(mst_pts)):
+            # create a plane at each point
+            plane = vtk.vtkPlane()
+            plane.SetOrigin(mst_pts[i])
+            plane.SetNormal(CenterlineSectionNormal[i])
+
+            # use vtkcutter to get the clipped surface
+            cutter = vtk.vtkCutter()
+            cutter.SetCutFunction(plane)
+            cutter.SetInputData(surface_pd)
+            cutter.Update()
+            slicePolyData = cutter.GetOutput()
+
+            # Extract points from the slice
+            points = slicePolyData.GetPoints()
+            if points is None:
+                continue
+            num_points = points.GetNumberOfPoints()
+            polygon_points = []
+
+            for j in range(num_points):
+                p = points.GetPoint(j)
+                polygon_points.append((p[1], p[2]))  # Projecting onto the YZ plane
+
+            # Convert to numpy array for easy manipulation
+            polygon_points = np.array(polygon_points)
+
+            # Calculate the area using the shoelace formula
+            area = calculate_polygon_area(polygon_points)
+
+            # Store the area
+            CenterlineSectionArea[i] = area 
+        
+        return CenterlineSectionArea
+        
+
+
+    CenterlineSectionArea = get_CenterlineSectionArea(mst_pts,CenterlineSectionNormal,surface_pd)
+    add_attributes('CenterlineSectionArea',CenterlineSectionArea,mst_polydata)
+    write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\mst_added_bifurcationId_GlobalNodeId_CenterlineId_BranchId_Path_CenterlineSectionNormal_CenterlineSectionArea.vtp')
+
+
+    pdb.set_trace()
+  
