@@ -955,12 +955,23 @@ def reparse_solver_input_use_martins(gt_file, pred_file):
 
 
 
+# def run_1d_simulation(input_file_path):
+#     OneDSolver_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release\\OneDSolver.exe'
+#     subprocess.check_output([OneDSolver_path, input_file_path], cwd = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release')
+#     OneDSolver_folder_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release'
+#     return OneDSolver_folder_path
 def run_1d_simulation(input_file_path):
-    OneDSolver_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release\\OneDSolver.exe'
-    subprocess.check_output([OneDSolver_path, input_file_path], cwd = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release')
-    OneDSolver_folder_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release'
-    return OneDSolver_folder_path
-
+        OneDSolver_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release\\OneDSolver.exe'
+        
+        # Use subprocess.run and set stdout and stderr to None to inherit the output to the console
+        subprocess.run([OneDSolver_path, input_file_path], 
+                    cwd='C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release',
+                    stdout=None,  # Display stdout in the terminal
+                    stderr=None,  # Display stderr in the terminal
+                    shell=False)  # shell=False is usually safer
+        
+        OneDSolver_folder_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\svOneDSolver\\svOneDSolver_build\\bin\\Release'
+        return OneDSolver_folder_path
 
 
 def set_path_name():
@@ -984,9 +995,10 @@ def set_path_name():
 def main():
     result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path = set_path_name()
     #pd = read_geo('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0063_1001_rerun\\export_PRED_ROM_ready_surface_modified.vtp')
-    path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes'
+    # path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes'
+    # model_name = '0176_0000'
+    path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS'
     model_name = '0176_0000'
-
     def setup_PRED_ROM_parameters(path,model_name,order):
         if order == 1:
             Params = Parameters() # put everything is params
@@ -994,36 +1006,45 @@ def main():
             Params.output_directory = path
             Params.boundary_surfaces_dir = os.path.join(path,'pred_boundary_faces')
             Params.inlet_face_input_file = 'inlet.vtp'
-            Params.centerlines_output_file = os.path.join(path,'extracted_pred_centerlines.vtp')
-            Params.surface_model = os.path.join(path,'export_PRED_ROM_ready_surface.vtp')
+            Params.centerlines_output_file = os.path.join(path,'0176_numi_cl_added_attributes_subdivided_shoelace_n_radii_if_too_small.vtp')
+            Params.surface_model = os.path.join(path,'0176_0000.vtp')
             Params.inflow_input_file = os.path.join(path,'pred_inflow_files','inflow_1d.flow')
             Params.model_order = 1
-            Params.solver_output_file = 'pred_1d_solver_output_redo.in' # need this to write out the solver file
+            Params.solver_output_file = 'pred_1d_solver_output.in' # need this to write out the solver file
             Params.model_name = model_name
             Params.outflow_bc_type = 'rcr' #rcr, resistance or coronary vmr 3d sim uses this and it calls 
             Params.outflow_bc_file =  os.path.join(path,'pred_inflow_files\\')
             # create own .dat file? 
             Params.uniform_bc = False
-            return Params
+            Params.outlet_face_names_file = os.path.join(path,'centerline_outlets.dat')
+        return Params
 
     Params = setup_PRED_ROM_parameters(path,model_name,1)
     Cl = Centerlines()
-    try:
-        Cl.extract_center_lines(Params)
-    except:
-        print('error in extracting centerlines')
+    Cl.read(Params,'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS\\0176_numi_cl_added_attributes_subdivided_shoelace_n_radii_if_too_small.vtp')
+    
+    # Cl.outlet_face_names = ['outlet0','outlet1','outlet2','outlet3','outlet4'] #hardcoded
+    # Cl.write_outlet_face_names(Params)
+    # try:
+    #     Cl.read(Params,'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS\\extracted_pred_centerlines.vtp')
+    # except:
+    #     print('error in extracting centerlines')
     msh = mesh.Mesh()
     # msh.outlet_face_names_file = os.path.join(path,'centerline_outlets.dat')
     msh.generate(Params,Cl) 
     print('solver input file generated')
-    # martin_1d_input = os.path.join(martin_1d_input_path, model_name+'_1d.in')
-    # reparse_solver_input_use_martins(martin_1d_input, os.path.join(path,'pred_1d_solver_output_redo.in'))
+    martin_1d_input = os.path.join(martin_1d_input_path, model_name+'_1d.in')
+    reparse_solver_input_use_martins(martin_1d_input, os.path.join(path,'pred_1d_solver_output.in'))
 
-    # pred_input_file_path = os.path.join(path,'PRED_1d_solver_output.in')
+    pred_input_file_path = os.path.join(path,'pred_1d_solver_output.in')
+    test_path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_1d\\0176_0000_1d.in'
+    pdb.set_trace()
     # try:
     #     OneDSolver_folder_path = run_1d_simulation(pred_input_file_path)
     # except:
     #     edit_log(path, "1d simulation failed!!!")
+    #     # print reason
+
 
 
 if __name__ == "__main__":
