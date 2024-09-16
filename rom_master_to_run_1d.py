@@ -15,6 +15,29 @@ import subprocess
 import csv
 #import vmtk
 
+def smooth_polydata(poly, iteration=25, boundary=False, feature=False, smoothingFactor=0.):
+    """
+    This function smooths a vtk polydata
+    Args:
+        poly: vtk polydata to smooth
+        boundary: boundary smooth bool
+    Returns:
+        smoothed: smoothed vtk polydata
+    """
+    smoother = vtk.vtkWindowedSincPolyDataFilter()
+    smoother.SetInputData(poly)
+    smoother.SetPassBand(pow(10., -4. * smoothingFactor))
+    smoother.SetBoundarySmoothing(boundary)
+    smoother.SetFeatureEdgeSmoothing(feature)
+    smoother.SetNumberOfIterations(iteration)
+    smoother.NonManifoldSmoothingOn()
+    smoother.NormalizeCoordinatesOn()
+    smoother.Update()
+
+
+    smoothed = smoother.GetOutput()
+
+    return smoothed
 
 def edit_log(path, input, txt_file="process_log.txt"):
     txt_file_path = os.path.join(path, txt_file)
@@ -1033,7 +1056,7 @@ def main():
         # print('debug: gt_inflow_pd_path ' + gt_inflow_pd_path)
 
         # boxcut the model
-        box_scale = 3
+        box_scale = 4
         try:
             boxcut_model,clippingbox = bryan_boxcut(gt_cl_path,pred_surf_path,filename,box_scale, gt_cl_path)
             

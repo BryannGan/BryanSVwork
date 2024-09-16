@@ -1485,9 +1485,9 @@ def main():
 
         # Prepare inflow.dat file for OneD simulation
         
+        
 
-
-
+        
         #### get GT info on caps and branchid
         gtclpd = read_geo(gt_cl_path)
         gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)

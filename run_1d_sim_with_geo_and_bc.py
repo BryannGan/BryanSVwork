@@ -290,6 +290,7 @@ def setup_PRED_ROM_parameters(path,model_name,order):
         Params.outflow_bc_file =  os.path.join(path,'pred_inflow_files\\')
         # create own .dat file? 
         Params.uniform_bc = False
+        
         #watch out!
         Params.model_order= 0
         return Params
@@ -877,14 +878,14 @@ def attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_our_simu):
     return endpts_for_our_simu
 
 
-def write_rcrt_dat_file(gt_inflow_directory,bc_matching_endts_lst):
+def write_rcrt_dat_file(a_directory,bc_matching_endts_lst):
     
     def write_file(path_to_file,text):
         with open(path_to_file, "a") as f:
             f.write(text + "\n")
             f.close()
 
-    rcrt_file_path = os.path.join(gt_inflow_directory, 'rcrt.dat')
+    rcrt_file_path = os.path.join(a_directory, 'rcrt.dat')
     # initiate the file 
     with open(rcrt_file_path, "a") as f:
         f.write('2' + "\n")
@@ -912,6 +913,7 @@ def write_rcrt_dat_file(gt_inflow_directory,bc_matching_endts_lst):
 def add_face_name_to_our_sim(endpts_for_our_simu,gt_sim_boundary_face_path):
     for i in endpts_for_our_simu:
         for j in os.listdir(gt_sim_boundary_face_path):
+            
             if compute_distance(i[1],compute_polydata_centroid(read_geo(os.path.join(gt_sim_boundary_face_path,j)))) < 0.3:
                 i.append(j[:-4])
     return endpts_for_our_simu
@@ -953,6 +955,33 @@ def reparse_solver_input_use_martins(gt_file, pred_file):
     #     print('Centerline Resampler Executed')
 
 
+
+
+def reparse_solver_input_use_martins_0d(gt_file, pred_file):
+    # Read the content from gt_file
+    with open(gt_file, 'r') as f_gt:
+        gt_lines = f_gt.readlines()
+    
+    for i in range(len(gt_lines)):
+        if gt_lines[i] ==  '    "simulation_parameters": {\n':
+            gt_to_paste = gt_lines[i:i+6]
+    
+
+    # Read the content from pred_file
+    with open(pred_file, 'r') as f_pred:
+        pred_lines = f_pred.readlines()
+
+    for i in range(len(pred_lines)):
+        if pred_lines[i] ==  '    "simulation_parameters": {\n':
+            before = pred_lines[:i]
+            after = pred_lines[i+6:]
+
+    os.remove(pred_file)
+    
+    combined_content = before + gt_to_paste + after
+    with open(pred_file, 'w') as f_pred:
+        f_pred.writelines(combined_content)
+    
 
 
 # def run_1d_simulation(input_file_path):
@@ -997,7 +1026,7 @@ def main():
     #pd = read_geo('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\for_sb3c\\0063_1001_rerun\\export_PRED_ROM_ready_surface_modified.vtp')
     # path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes'
     # model_name = '0176_0000'
-    path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS'
+    path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS\\0176_0000'
     model_name = '0176_0000'
     def setup_PRED_ROM_parameters(path,model_name,order):
         if order == 1:
@@ -1006,7 +1035,7 @@ def main():
             Params.output_directory = path
             Params.boundary_surfaces_dir = os.path.join(path,'pred_boundary_faces')
             Params.inlet_face_input_file = 'inlet.vtp'
-            Params.centerlines_output_file = os.path.join(path,'0176_numi_cl_added_attributes_subdivided_shoelace_n_radii_if_too_small.vtp')
+            Params.centerlines_output_file = os.path.join(path,'0176_numi_cl_added_attributes_CORRECT_SHOELACE.vtp')
             Params.surface_model = os.path.join(path,'0176_0000.vtp')
             Params.inflow_input_file = os.path.join(path,'pred_inflow_files','inflow_1d.flow')
             Params.model_order = 1
@@ -1017,32 +1046,120 @@ def main():
             # create own .dat file? 
             Params.uniform_bc = False
             Params.outlet_face_names_file = os.path.join(path,'centerline_outlets.dat')
+        elif order == 0:
+            Params = Parameters()
+            Params.density = 1.06
+            Params.output_directory = path
+            Params.boundary_surfaces_dir = os.path.join(path,'pred_boundary_faces')
+            Params.inlet_face_input_file = 'inlet.vtp'
+            Params.centerlines_output_file = os.path.join(path,'0176_numi_cl_added_attributes_CORRECT_SHOELACE.vtp')
+            Params.surface_model = os.path.join(path,'0176_0000.vtp')
+            Params.inflow_input_file = os.path.join(path,'pred_inflow_files','inflow_1d.flow')
+            Params.model_order = 0
+            Params.solver_output_file = 'pred_0d_solver_output.in' # need this to write out the solver file
+            Params.model_name = model_name
+            Params.outflow_bc_type = 'rcr' #rcr, resistance or coronary vmr 3d sim uses this and it calls 
+            Params.outflow_bc_file =  os.path.join(path,'pred_inflow_files\\')
+            Params.outlet_face_names_file = os.path.join(path,'centerline_outlets.dat')
+            Params.uniform_bc = False
         return Params
-
-    Params = setup_PRED_ROM_parameters(path,model_name,1)
-    Cl = Centerlines()
-    Cl.read(Params,'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS\\0176_numi_cl_added_attributes_subdivided_shoelace_n_radii_if_too_small.vtp')
+    #############
+    # 1D simulation
+    ##############
+    # 1. set up parameters
+    # 2. read in centerline
+    # 3. reparse rcrt (boundary conditions) file
+    # 4. generate mesh
     
-    # Cl.outlet_face_names = ['outlet0','outlet1','outlet2','outlet3','outlet4'] #hardcoded
-    # Cl.write_outlet_face_names(Params)
-    # try:
-    #     Cl.read(Params,'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS\\extracted_pred_centerlines.vtp')
-    # except:
-    #     print('error in extracting centerlines')
+    # 1
+    Params = setup_PRED_ROM_parameters(path,model_name,1)
+    # 2
+    Cl = Centerlines()
+    our_cl_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS\\0176_0000\\0176_numi_cl_added_attributes_CORRECT_SHOELACE.vtp'
+    Cl.read(Params,our_cl_path)
+    # 3
+    
+    def master_get_rcrt(path,model_name,svproject_path):
+        martin_1d_input_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_1d'
+        martin_0d_input_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_0d'
+        gt_cl_path =   'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\centerlines'
+        martin_1d_input = os.path.join(martin_1d_input_path, model_name+'_1d.in')
+        gt_inflow_pd_path = os.path.join(svproject_path, os.path.splitext(model_name)[0],'Simulations',os.path.splitext(model_name)[0],'mesh-complete','mesh-surfaces','inflow.vtp')
+        bc_folder_path = os.path.join(svproject_path, os.path.splitext(model_name)[0],'Simulations',os.path.splitext(model_name)[0])
+        
+        #### get GT info on caps and branchid
+        gtclpd = read_polydata(os.path.join(gt_cl_path,model_name+'.vtp'))
+        gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
+        gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
+        master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair) 
+
+        #### get pred info on caps and branchid
+        boundary_face_path= os.path.join(path,'pred_boundary_faces')
+        pred_inflow_directory = os.path.join(path,'pred_inflow_files')
+        copy_file(bc_folder_path,'rcrt.dat',pred_inflow_directory)
+        ourclpd = read_polydata(our_cl_path)
+        pred_endpt_branchid_pair = pair_endpts_with_branchid(ourclpd)
+        endpts_for_pred_simu = add_face_name_to_our_sim(pred_endpt_branchid_pair,boundary_face_path)
+        pred_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_pred_simu)
+        # delete the existing rcrt.dat file
+        for filename in os.listdir(pred_inflow_directory):
+            if filename == 'rcrt.dat':
+                os.remove(os.path.join(pred_inflow_directory,filename))
+        write_rcrt_dat_file(pred_inflow_directory,pred_sim_bc_matching_endpts_lst)
+        return pred_sim_bc_matching_endpts_lst
+    
+    rcr_lst = master_get_rcrt(path,model_name,svproject_path)
+    
+
     msh = mesh.Mesh()
     # msh.outlet_face_names_file = os.path.join(path,'centerline_outlets.dat')
     msh.generate(Params,Cl) 
-    print('solver input file generated')
+    print('!!!!!!!!!!!!!solver input file generated!!!!!!!!!!!')
     martin_1d_input = os.path.join(martin_1d_input_path, model_name+'_1d.in')
     reparse_solver_input_use_martins(martin_1d_input, os.path.join(path,'pred_1d_solver_output.in'))
 
     pred_input_file_path = os.path.join(path,'pred_1d_solver_output.in')
     test_path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_1d\\0176_0000_1d.in'
-    pdb.set_trace()
+
+    
     # try:
     #     OneDSolver_folder_path = run_1d_simulation(pred_input_file_path)
     # except:
-    #     edit_log(path, "1d simulation failed!!!")
+    #         edit_log(path, "1d simulation failed!!!")
+    #         print('1d simulation failed!!!')
+
+
+    # # #############
+    # # # 0D simulation
+    # # ##############
+    print('********************************************')
+    print('*********** 0D *****************************')
+    Params_0D = setup_PRED_ROM_parameters(path,model_name,0)
+    Params_0D.uniform_bc = False
+
+    Cl = Centerlines()
+    Cl.read(Params_0D,'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\MIROS\\0176_0000\\0176_numi_cl_added_attributes_CORRECT_SHOELACE.vtp')
+    #Cl.outlet_face_names = ['outlet0','outlet1','outlet2','outlet3','outlet4']
+    msh = mesh.Mesh()
+    msh.set_outlet_face_names(Params_0D)
+    #print(msh.bc_type)
+    msh.outlet_face_names_file = os.path.join(path,'centerline_outlets.dat')
+    pdb.set_trace()
+    msh.generate(Params_0D,Cl)
+    martin_0d_input_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_0d'
+    martin_0d_input = os.path.join(martin_0d_input_path, model_name+'_0d.in')
+    reparse_solver_input_use_martins_0d(martin_0d_input, os.path.join(path,'PRED_0d_solver_output.in'))
+    
+
+
+
+
+
+
+
+
+
+    pdb.set_trace()
     #     # print reason
 
 

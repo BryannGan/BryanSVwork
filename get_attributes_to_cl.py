@@ -9,13 +9,13 @@ from itertools import combinations
 import networkx as nx
 from numi_minimum_span import *
 from scipy.ndimage import gaussian_filter1d
-
+from matplotlib import pyplot as plt
 
 
 ###
 # this code is to add attributes to a centerline polydata
 # note: each point is a tuple! eg. [(x1,y1,z1), (x2,y2,z2), ...]
-###
+### 
 
 def numi_MST(input_polydata):
     # Compute pairwise distances between points
@@ -318,9 +318,6 @@ def subdivide_2D_coordinates_with_cubic_spline(coords, subdivision_factor=4):
     cs_x = CubicSpline(t, x)
     cs_y = CubicSpline(t, y)
     
-    
-    
-    
     # Generate a finer parameterization for the curve
     t_fine = np.linspace(0, 1, len(coords) * subdivision_factor)
     
@@ -390,7 +387,7 @@ def merge_coordinate_lists(coord_lists):
 
     return merged_lists
 
-def get_bifurcation_junctions(all_pts, bfpt,radius=1.7):
+def get_bifurcation_junctions(all_pts, bfpt,radius=1.3):
     """
     this function gets the bifurcation junctions (select all pts within 1 radius away from bfpt)
     in other words, it gets the BifurcationId 
@@ -761,17 +758,41 @@ def vtk_polygon_area_method(vertices):
                         
         
 #         return BranchId
+def low_pass_filter(data, cutoff_freq, sampling_rate):
+    """
+    Applies a simple low-pass filter to a 1D array of data using a single-pole IIR filter.
+
+    Parameters:
+    - data: 1D array of input data to be filtered (e.g., your noisy signal)
+    - cutoff_freq: The cutoff frequency of the filter (in Hz)
+    - sampling_rate: The sampling rate of the data (in Hz)
+
+    Returns:
+    - filtered_data: The filtered signal as a 1D array
+    """
+    
+    # Compute the filter coefficient
+    RC = 1.0 / (2 * np.pi * cutoff_freq)
+    dt = 1.0 / sampling_rate
+    alpha = dt / (RC + dt)
+
+    # Initialize the filtered data array
+    filtered_data = np.zeros_like(data)
+
+    # Apply the filter (this is the recursive filtering process)
+    filtered_data[0] = data[0]  # First element remains the same
+    for i in range(1, len(data)):
+        filtered_data[i] = alpha * data[i] + (1 - alpha) * filtered_data[i - 1]
+
+    return filtered_data
 
 
-# def project_onto_plane(loop_points, ref_point, normal):
-#     projection_lst = [None]*len(loop_points)
-#     for i in range(len(loop_points)):
-#         normal = normal / np.linalg.norm(normal)
-#         vector = loop_points[i] - ref_point
-#         distance = np.dot(vector, normal)
-#         projection = loop_points[i] - distance * normal
-#         projection_lst[i] = projection
-#     return projection_lst
+
+
+
+
+
+
 def project_points_to_2d_plane(points, normal_vector, d=0):
     normal_vector = normal_vector / np.linalg.norm(normal_vector)
     
@@ -841,11 +862,50 @@ def create_2d_sphere_actor(center, radius, color):
     return actor
 
 
+def pre_shoelace(loop_pd, points_2d, loop_coords_3D):
+    """
+    process the points and order them based on connectivity
+    
+    get the area of the loop
+    """
+    # loop_coords_3D and projected_points_2d are the same length (index matches)
+    # thus finding connectivity of loop_coords_3D is the same as projected_points_2d
+    # get the connectivity of the loop_coords_3D
+    # connected_pointId_pair = get_connected_point_id(loop_pd,loop_coords_3D)
+    # pdb.set_trace()
+
+    # get center of the loop
+    #pdb.set_trace()
+    center = np.mean(points_2d, axis=0)
+    # sort the points based on angle
+    angles = np.arctan2(points_2d[:, 1] - center[1], points_2d[:, 0] - center[0])
+    sorted_indices = np.argsort(angles)
+    points_2d = points_2d[sorted_indices]
+
+    #point_2d = subdivide_2D_coordinates_with_cubic_spline(points_2d)
+    return points_2d
+
 
 def shoelace(points_2d):
     x = points_2d[:, 0]
     y = points_2d[:, 1]
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+
+from matplotlib.path import Path as mplPath
+def monte_carlo_area(vertices, num_samples=20000):
+    
+    path = mplPath(vertices)
+    min_x, min_y = np.min(vertices, axis=0)
+    max_x, max_y = np.max(vertices, axis=0)
+    
+    samples = np.random.rand(num_samples, 2)
+    samples[:, 0] = samples[:, 0] * (max_x - min_x) + min_x
+    samples[:, 1] = samples[:, 1] * (max_y - min_y) + min_y
+
+    inside = path.contains_points(samples)
+    area_estimate = (np.sum(inside) / num_samples) * (max_x - min_x) * (max_y - min_y)
+    return area_estimate
+
 
 
 def get_BranchId_and_Path(mst_pts,junction_pts,junction,dict_cell,mst_polydata,endpts_coord):
@@ -1509,37 +1569,47 @@ if __name__ == '__main__':
     def get_CenterlineSectionArea_using_MaximumInscribedSphereRadius(mst_pts,junction_pts,dict_cell,surface_pd):
         CenterlineSectionArea = np.zeros(len(mst_pts))
         lst_used_max_inscribed_sphere = []
-        twod_coord_lst = []
+        twod_coord_dict = {}
         
         shoelace_n_radii_if_too_small = np.zeros(len(mst_pts))
         all_radii = np.zeros(len(mst_pts))
+        MC_lst = np.zeros(len(mst_pts))
+        corrected_shoelace = np.zeros(len(mst_pts))
+
         for i in range(len(mst_pts)):
             coord = mst_pts[i]
             # if pts is in bifurcation, use the maximum inscribed sphere radius to calculate the area
             if coord in junction_pts:
-                lst_used_max_inscribed_sphere.append(i)
+            # # # #     lst_used_max_inscribed_sphere.append(i)
 
-               # get the radius of the maximum inscribed sphere
-                # use a stupid but effective way
-                # loop over each line to find the point, get matching radius
-                for j in range(len(dict_cell)):
-                    if coord in dict_cell[j][1]:
-                        index = dict_cell[j][1].index(coord)
-                        radius = dict_cell[j][2][index]
-                        CenterlineSectionArea[i] = np.pi*radius*radius
-                        shoelace_n_radii_if_too_small[i] = np.pi*radius*radius
-                        all_radii[i] = np.pi*radius*radius
-                    else:
-                        for k in range(len(dict_cell[j][1])):
-                            if np.linalg.norm(np.array(coord)-np.array(dict_cell[j][1][k])) < 0.001:
-                                radius = dict_cell[j][2][k]
-                                CenterlineSectionArea[i] = np.pi*radius*radius
-                                shoelace_n_radii_if_too_small[i] = np.pi*radius*radius
-                                all_radii[i] = np.pi*radius*radius
-                # double check if the area is calculated
-                if CenterlineSectionArea[i] == 0:
-                    print(f"Error: Area not calculated at point {coord}")
-            else:
+            # # # #    # get the radius of the maximum inscribed sphere
+            # # # #     # use a stupid but effective way
+            # # # #     # loop over each line to find the point, get matching radius
+            # # # #     for j in range(len(dict_cell)):
+            # # # #         if coord in dict_cell[j][1]:
+            # # # #             index = dict_cell[j][1].index(coord)
+            # # # #             radius = dict_cell[j][2][index]
+            # # # #             CenterlineSectionArea[i] = np.pi*radius*radius
+            # # # #             shoelace_n_radii_if_too_small[i] = np.pi*radius*radius
+            # # # #             all_radii[i] = np.pi*radius*radius
+            # # # #             MC_lst[i] = np.pi*radius*radius
+            # # # #             corrected_shoelace[i] = np.pi*radius*radius
+           
+                # # # #     else:
+                # # # #         for k in range(len(dict_cell[j][1])):
+                # # # #             if np.linalg.norm(np.array(coord)-np.array(dict_cell[j][1][k])) < 0.001:
+                # # # #                 radius = dict_cell[j][2][k]
+                # # # #                 CenterlineSectionArea[i] = np.pi*radius*radius
+                # # # #                 shoelace_n_radii_if_too_small[i] = np.pi*radius*radius
+                # # # #                 all_radii[i] = np.pi*radius*radius
+                # # # #                 MC_lst[i] = np.pi*radius*radius
+                # # # # # double check if the area is calculated
+                # # # # if CenterlineSectionArea[i] == 0:
+                # # # #     print(f"Error: Area not calculated at point {coord}")
+
+
+         # CORRECTION get the area using shoelace instead of maximum inscribed sphere radius
+                projected_points_2d = []
                 # create a plane at each point
                 
                 plane = vtk.vtkPlane()
@@ -1582,25 +1652,94 @@ if __name__ == '__main__':
                         min_distance = distance
                         closest_loop_id = j
                 print(f"closest loop id is {closest_loop_id}")
-                #write_polydata(cleaned_pd_lst[closest_loop_id], f'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\single_slice_{i}.vtp')
+                loop_pd = cleaned_pd_lst[closest_loop_id]
+                #write_polydata(cleaned_pd_lst[closest_loop_id], f'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\single_slice\\single_slice_{i}.vtp')
+                
                 # use enclosed loop to get area#################
-                loop_coords = loop_coords[closest_loop_id]
-                
-                
-                
+                loop_coords_3d = loop_coords[closest_loop_id]
+
                 # project to 2D
-                projected_points_2d = project_points_to_2d_plane(loop_coords,CenterlineSectionNormal[i])
-                twod_coord_lst.append(projected_points_2d)
-                #visualize_2d_coordinates(projected_points_2d)
-               
-                subdivided_2D_loop = subdivide_2D_coordinates_with_cubic_spline(projected_points_2d,4)
-                # make every index to np list
-                subdivided_2D_loop = np.array(subdivided_2D_loop)
+                points_2d = project_points_to_2d_plane(loop_coords_3d,CenterlineSectionNormal[i])
                 
+                #visualize_2d_coordinates(projected_points_2d)
+                
+                points_2d = pre_shoelace(loop_pd, points_2d, loop_coords_3d)
+                twod_coord_dict[i] = points_2d
                 #method 1: shoelace
                 
-                CenterlineSectionArea[i] = shoelace(subdivided_2D_loop)
-                shoelace_n_radii_if_too_small[i]= shoelace(subdivided_2D_loop)
+                CenterlineSectionArea[i] = shoelace(points_2d)
+                shoelace_n_radii_if_too_small[i]= shoelace(points_2d)
+                MC_lst[i] = monte_carlo_area(points_2d)
+
+                # method 2: use maximum inscribed sphere radius for small area
+                if shoelace_n_radii_if_too_small[i] < 0.1: # if too small, use maximum inscribed sphere radius
+                    shoelace_n_radii_if_too_small[i] = np.pi*MaximumInscribedSphereRadius[i]*MaximumInscribedSphereRadius[i]
+                
+                # method 3: all se max inscribed sphere radius
+                all_radii[i] = np.pi*MaximumInscribedSphereRadius[i]*MaximumInscribedSphereRadius[i]
+                
+            else:
+                projected_points_2d = []
+                # create a plane at each point
+                
+                plane = vtk.vtkPlane()
+                plane.SetOrigin(coord)
+                plane.SetNormal(CenterlineSectionNormal[i])
+
+                # use vtkcutter to get the sliced loop of the surface
+                cutter = vtk.vtkCutter()
+                cutter.SetCutFunction(plane)
+                cutter.SetInputData(surface_pd)
+                cutter.Update()
+                slicePolyData = cutter.GetOutput()
+                polydata = slicePolyData    
+                #write_polydata(slicePolyData, f'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\total_slice_{i}.vtp')
+                
+                
+                loop_pd_lst = extract_connected_loops(slicePolyData)
+                # write all loops
+                # for j in range(len(loop_pd_lst)):
+                #     write_polydata(loop_pd_lst[j], f'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\ref_pt_{i}_loop{j}.vtp')
+                #pdb.set_trace()
+                # clean the polydata
+                cleaned_pd_lst = []
+                for loop_pd in loop_pd_lst:
+                    cleaner = vtk.vtkCleanPolyData()
+                    cleaner.SetInputData(loop_pd)
+                    cleaner.Update()
+                    cleaned_loop_pd = cleaner.GetOutput()
+                    cleaned_pd_lst.append(cleaned_loop_pd)
+                
+                # get coordinates of each loop
+                loop_coords = [v2n(loop_pd.GetPoints().GetData()) for loop_pd in cleaned_pd_lst]
+                #print(loop_coords[0][0] == loop_coords[1][0])
+                # find out which loop has point closest to the reference point
+                min_distance = float('inf')
+                closest_loop_id = -1
+                for j in range(len(loop_coords)):
+                    distance = np.min([np.linalg.norm(np.array(coord) - np.array(loop_coord)) for loop_coord in loop_coords[j]])
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_loop_id = j
+                print(f"closest loop id is {closest_loop_id}")
+                loop_pd = cleaned_pd_lst[closest_loop_id]
+                #write_polydata(cleaned_pd_lst[closest_loop_id], f'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\single_slice\\single_slice_{i}.vtp')
+                
+                # use enclosed loop to get area#################
+                loop_coords_3d = loop_coords[closest_loop_id]
+
+                # project to 2D
+                points_2d = project_points_to_2d_plane(loop_coords_3d,CenterlineSectionNormal[i])
+                
+                #visualize_2d_coordinates(projected_points_2d)
+                
+                points_2d = pre_shoelace(loop_pd, points_2d, loop_coords_3d)
+                twod_coord_dict[i] = points_2d
+                #method 1: shoelace
+                
+                CenterlineSectionArea[i] = shoelace(points_2d)
+                shoelace_n_radii_if_too_small[i]= shoelace(points_2d)
+                MC_lst[i] = monte_carlo_area(points_2d)
 
                 # method 2: use maximum inscribed sphere radius for small area
                 if shoelace_n_radii_if_too_small[i] < 0.1: # if too small, use maximum inscribed sphere radius
@@ -1617,27 +1756,82 @@ if __name__ == '__main__':
                 # triangulate_area[i] = 0
                 # vtk_polygon_area[i] = vtk_polygon_area_method(np.array(loop_coords))
                 # round centerlinesectionarea to 7 decimal places
-                CenterlineSectionArea[i] = round(CenterlineSectionArea[i],7)
+                #CenterlineSectionArea[i] = round(CenterlineSectionArea[i],7)
         master = {}
         master['shoelace_radii_at_junction'] = CenterlineSectionArea
         master['shoelace_radii_if_too_small'] = shoelace_n_radii_if_too_small
         master['all_radii'] = all_radii
+        master['MC_lst'] = MC_lst
         lst_too_small = []
+        
         for a in range(len(CenterlineSectionArea)):
             if CenterlineSectionArea[a] < 0.09:
                 lst_too_small.append(a)
         #pdb.set_trace()
-        return CenterlineSectionArea,lst_too_small,lst_used_max_inscribed_sphere,twod_coord_lst,master
+
+        CenterlineSectionArea[0] = CenterlineSectionArea[1]
+        return CenterlineSectionArea,lst_too_small,lst_used_max_inscribed_sphere,twod_coord_dict,master
 
 
 
-    CenterlineSectionArea,lst_too_small,lst_used_max_inscribed_sphere,twod_coord_lst,master_area = get_CenterlineSectionArea_using_MaximumInscribedSphereRadius(mst_pts,junction_pts,dict_cell,surface_pd)
-    pdb.set_trace()
-    add_attributes('CenterlineSectionArea',master_area['shoelace_radii_if_too_small'],mst_polydata)
+    CenterlineSectionArea,lst_too_small,lst_used_max_inscribed_sphere,twod_coord_dict,master_area = get_CenterlineSectionArea_using_MaximumInscribedSphereRadius(mst_pts,junction_pts,dict_cell,surface_pd)
     
-    # add_attributes('CenterlineSectionArea',CenterlineSectionArea,mst_polydata)
-    write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\0176_numi_cl_added_attributes_subdivided_shoelace_n_radii_if_too_small.vtp')
+    def postprocessing_of_CenterlineSectionArea(master_area, shoelce_n_radii,MC_lst,window_length=5,polyorder=2):
+            # smooth the first couple of points (due to boxcut angle)
+            from scipy.signal import savgol_filter
+            shoelce_n_radii_smooth = savgol_filter(shoelce_n_radii, window_length, polyorder)
+            MC_smooth = savgol_filter(MC_lst, window_length, polyorder)
+            shoelace_n_radii_LP = low_pass_filter(shoelce_n_radii, 1,20)
+            #plt.plot(shoelce_n_radii_smooth)
+            #plt.plot(master_area['shoelace_radii_if_too_small'])
+            plt.plot(master_area['MC_lst'])
+            plt.plot(MC_smooth)
+            plt.plot(shoelace_n_radii_LP)
+            title = 'window length '+ str(window_length) + ' polyorder ' + str(polyorder) + ' LPF cutoff 1 sampling rate 20'
+            plt.title(title)
+            plt.legend(['MC','MC_smooth','Shoelace_n_radii_LPF_cutoff_1_sampling_rate_20'])
+            
+            plt.savefig('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\centerlinesectionarea\\' + title + '.png')  
 
+            return shoelce_n_radii_smooth,MC_smooth,shoelace_n_radii_LP
+
+
+    shoelce_n_radii_smooth, MC_smooth,shoelace_n_radii_LP = postprocessing_of_CenterlineSectionArea(master_area,CenterlineSectionArea,master_area['MC_lst'] )
+    pdb.set_trace()
+    #shoelace_n_radii_LP = [shoelace_n_radii_LP[i]*2 for i in range(len(shoelace_n_radii_LP))]
+    add_attributes('CenterlineSectionArea',CenterlineSectionArea,mst_polydata)
+    # add_attributes('CenterlineSectionArea',CenterlineSectionArea,mst_polydata)
+    write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\0176_numi_cl_added_attributes_CORRECT_SHOELACE.vtp')
+
+    # test parameters for lpf
+# samplingrate = [10, 20, 30, 50, 70, 100] # the greater, the more detail it loses: 20-30 works well
+# cutofffreq = [0.5, 1, 2, 3,4] # the smaller the better: 3 works well
+# # when sampling rate is really high 100, cutoff freq should be high too 4
+# #    
+# # some good pairs [4,100] [2,70] [1,30] [0.5,10]
+# #plot all
+# for i in cutofffreq:
+#     for j in samplingrate:
+    
+#         shoelace_n_radii_LP = low_pass_filter(CenterlineSectionArea, i, j)
+#         plt.plot(shoelace_n_radii_LP)
+#         title = 'cut off freq'+ str(i) + ' sampling rate' + str(j)
+#         plt.title(title)
+#         plt.savefig('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\centerlinesectionarea\\' + title + '.png')
+#         plt.clf()
+    
+   
+    #shoelace_smooth = postprocessing_of_CenterlineSectionArea(CenterlineSectionArea)
+    #plt.plot(shoelace_smooth)
+    # title, window_length, polyorder
+    #title = 'Shoelace_smooth' + ' ' + str(5) + ' ' + str(2)
+    #plt.title(title)   
+    #plt.savefig('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\centerlinesectionarea\\' + title + '.png')
+  
+    #CenterlineSectionArea = postprocessing_of_CenterlineSectionArea(CenterlineSectionArea)
+    # start new plot
+    #
+    
 
     pdb.set_trace()
 
