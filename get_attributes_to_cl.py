@@ -1520,6 +1520,12 @@ if __name__ == '__main__':
 
     pd, master_coords, master_edges,dict_cell,master_radii  = combine_cls_into_one_polydata(dict_cell)
     
+    ###########################################################
+    #########now we have the combined cl, get attributes#######
+    ##########################################################
+
+
+
     mst_pts = master_coords
     mst_polydata = pd
 
