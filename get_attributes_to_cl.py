@@ -85,7 +85,7 @@ def setup():
     pd = read_polydata(pd_path)
     surface_pd = read_polydata('c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\processed_0176_surface.vtp')
     surface_pd = bryan_fillholes(surface_pd)
-    
+    save_path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes\\'
     ######## cross check ##############################
     gtcl_path = 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\pipeline_testing_master\\test_cl_attributes\\vmr_centerlines.vtp'
     gtclpd = read_polydata(gtcl_path)
@@ -156,30 +156,8 @@ def setup():
         dict_cell[i].append(distance_lst[i][3])
         #print(len(distance_lst[i][3]))
     
-    return pd, gtclpd, dict_gt_attributes, dict_cell,surface_pd
- 
-# def create_polydata_from_coordinates(coords):
-#     # Create a vtkPoints object and insert the coordinates
-#     points = vtk.vtkPoints()
-#     for coord in coords:
-#         points.InsertNextPoint(coord)
-    
-#     # Create a vtkPolyLine which holds the connectivity information
-#     polyLine = vtk.vtkPolyLine()
-#     polyLine.GetPointIds().SetNumberOfIds(len(coords))
-#     for i in range(len(coords)):
-#         polyLine.GetPointIds().SetId(i, i)
-    
-#     # Create a vtkCellArray to store the lines in and add the polyLine to it
-#     cells = vtk.vtkCellArray()
-#     cells.InsertNextCell(polyLine)
-    
-#     # Create a vtkPolyData and add the points and lines to it
-#     polyData = vtk.vtkPolyData()
-#     polyData.SetPoints(points)
-#     polyData.SetLines(cells)
-    
-#     return polyData
+    return pd, gtclpd, dict_gt_attributes, dict_cell,surface_pd,save_path
+
 
 def create_polydata_from_coordinates(coords):
     # Create a vtkPoints object and insert the coordinates
@@ -333,7 +311,69 @@ def subdivide_2D_coordinates_with_cubic_spline(coords, subdivision_factor=4):
     # Return both the subdivided coordinates and the subdivided radii
     return subdivided_coords
 
+def find_mapping_of_branchid(ourcl, vmrcl):
+    """
+    some times the branch id in our centerline is different from the branch id in vmr centerline
+    this function finds the mapping between the two
+    """
+    our_branchid = v2n(ourcl.GetPointData().GetArray('BranchId'))
+    vmr_branchid = v2n(vmrcl.GetPointData().GetArray('BranchId'))
+    
+    # for our cl
+    # record the last time a branch id was seen in list of branch id--> the end point of the branch & get its index to obtian corrdiate 
+    our_index_of_last_seen_branchid = {}
+    max_branchid = range(0,max(our_branchid)+1)
+    for i in max_branchid:
+        key = "branch{}".format(i)
+        our_index_of_last_seen_branchid[key] = []
+    for i in range(len(our_branchid)):
+        if our_branchid[i] != -1:
+            key = "branch{}".format(our_branchid[i])
+            our_index_of_last_seen_branchid[key].append(i)
 
+    # get the end point of each branch
+    our_endpoints = []
+    for key in our_index_of_last_seen_branchid.keys():
+        if len(our_index_of_last_seen_branchid[key]) > 0:
+            #get coordinates of the end point of the branch
+            point_id = our_index_of_last_seen_branchid[key][-1]
+            coord = ourcl.GetPoint(point_id)
+            our_endpoints.append(["our_"+str(key),coord,our_index_of_last_seen_branchid[key][-1]])
+    
+    # for vmr cl
+    # record the last time a branch id was seen in list of branch id--> the end point of the branch & get its index to obtian corrdiate
+    vmr_index_of_last_seen_branchid = {}
+    max_branchid = range(0,max(vmr_branchid)+1)
+    for i in max_branchid:
+        key = "branch{}".format(i)
+        vmr_index_of_last_seen_branchid[key] = []
+    for i in range(len(vmr_branchid)):
+        if vmr_branchid[i] != -1:
+            key = "branch{}".format(vmr_branchid[i])
+            vmr_index_of_last_seen_branchid[key].append(i)
+
+    vmr_endpoints = []
+    for key in vmr_index_of_last_seen_branchid.keys():
+        if len(vmr_index_of_last_seen_branchid[key]) > 0:
+            #get coordinates of the end point of the branch
+            point_id = vmr_index_of_last_seen_branchid[key][-1]
+            coord = vmrcl.GetPoint(point_id)
+            vmr_endpoints.append(["vmr_"+str(key),coord,vmr_index_of_last_seen_branchid[key][-1]])
+    
+    # find the mapping between the two
+    # for each branch in our cl, find the closest branch in vmr cl
+    vmr_map_to_our = [] # means we are mapping vmr to our (changing vmr branch id to our branch id for result comparison)
+    for our in our_endpoints:
+        our_branch_id = our[0]
+        our_coord = our[1]
+        for vmr in vmr_endpoints:
+            vmr_branch_id = vmr[0]
+            vmr_coord = vmr[1]
+            distance = np.linalg.norm(np.array(our_coord) - np.array(vmr_coord))
+            if distance < 2:
+                vmr_map_to_our.append(["vmr",int(vmr_branch_id[-1]),"our",our_branch_id[-1]])
+
+    return vmr_map_to_our
 
 
 
@@ -387,7 +427,7 @@ def merge_coordinate_lists(coord_lists):
 
     return merged_lists
 
-def get_bifurcation_junctions(all_pts, bfpt,radius=1.3):
+def get_bifurcation_junctions(all_pts, bfpt,radius=2):
     """
     this function gets the bifurcation junctions (select all pts within 1 radius away from bfpt)
     in other words, it gets the BifurcationId 
@@ -1301,7 +1341,7 @@ def get_MaximumInscribedSphereRadius(mst_pts,master_radii):
         return MaximumInscribedSphereRadius
 
 if __name__ == '__main__':
-    pd, gtclpd, dict_gt_attributes, dict_cell,surface_pd = setup()
+    pd, gtclpd, dict_gt_attributes, dict_cell,surface_pd,save_path = setup()
     
     ##########
     # mannual correction
@@ -1450,7 +1490,7 @@ if __name__ == '__main__':
             points.InsertNextPoint(coord)
         
         pd = create_polydata_from_edges(master_edges,points)
-        write_polydata(pd, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\edge_created_combined_cl.vtp')
+        write_polydata(pd, save_path+'edge_created_combined_cl.vtp')
         # recreate dict_cell from what we have
         dict_cell = {}
         for i in range(len(new_dict_cell_pd)):
@@ -1461,7 +1501,23 @@ if __name__ == '__main__':
         return pd, master_coords, master_edges,dict_cell,master_radii
 
 
+    # calculate the average of centerline spacing to determine tolerance
+    def get_subdivided_cl_spacing(dict_cell):
+        """
+        get the average spacing of the centerline
+        """
+        spacing = []
+        for i in range(len(dict_cell)):
+            pts = dict_cell[i][1]
+            for j in range(len(pts)-1):
+                spacing.append(np.linalg.norm(np.array(pts[j]) - np.array(pts[j+1])))
+        return np.mean(spacing)
+
+    tolerance = get_subdivided_cl_spacing(dict_cell)
+    print(f"tolerance is {tolerance}")
     
+
+
     pd, master_coords, master_edges,dict_cell,master_radii  = combine_cls_into_one_polydata(dict_cell)
     
     mst_pts = master_coords
@@ -1482,7 +1538,7 @@ if __name__ == '__main__':
     bfpt = get_bifurcation_pts(dict_cell)
     
     spheres = create_spheres_at_coordinates(bfpt, radius=0.3)
-    write_polydata(spheres, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\bifurcation_pts.vtp')
+    write_polydata(spheres, save_path+'bifurcation_pts.vtp')
     
     ### process points
     all_pts = process_pts(dict_cell)
@@ -1548,7 +1604,7 @@ if __name__ == '__main__':
     endpts_id = [count_pt_appearance[i][0] for i in range(len(count_pt_appearance)) if count_pt_appearance[i][1] == 1]
     endpts_coord = [mst_pts[i] for i in endpts_id]
     endpts_sphere = create_spheres_at_coordinates(endpts_coord, radius=0.2)
-    write_polydata(endpts_sphere, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\endpts_spheres.vtp')
+    write_polydata(endpts_sphere, save_path+'endpts_spheres.vtp')
 
     
     # BranchId = get_BranchId(mst_pts,junction_pts,junction,dict_cell,mst_polydata,endpts_coord)
@@ -1796,12 +1852,11 @@ if __name__ == '__main__':
             return shoelce_n_radii_smooth,MC_smooth,shoelace_n_radii_LP
 
 
-    shoelce_n_radii_smooth, MC_smooth,shoelace_n_radii_LP = postprocessing_of_CenterlineSectionArea(master_area,CenterlineSectionArea,master_area['MC_lst'] )
+    #shoelce_n_radii_smooth, MC_smooth,shoelace_n_radii_LP = postprocessing_of_CenterlineSectionArea(master_area,CenterlineSectionArea,master_area['MC_lst'] )
     pdb.set_trace()
     #shoelace_n_radii_LP = [shoelace_n_radii_LP[i]*2 for i in range(len(shoelace_n_radii_LP))]
     add_attributes('CenterlineSectionArea',CenterlineSectionArea,mst_polydata)
-    # add_attributes('CenterlineSectionArea',CenterlineSectionArea,mst_polydata)
-    write_polydata(mst_polydata, 'c:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\2024_spring\\0176_numi_cl_added_attributes_CORRECT_SHOELACE.vtp')
+    write_polydata(mst_polydata, save_path+'0176_numi_cl_added_attributes_junction_2.vtp')
 
     # test parameters for lpf
 # samplingrate = [10, 20, 30, 50, 70, 100] # the greater, the more detail it loses: 20-30 works well
