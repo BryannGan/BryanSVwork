@@ -78,6 +78,7 @@ def read_geo(fname):
 def bryan_get_clipping_parameters(clpd):
     points = numpy_support.vtk_to_numpy(clpd.GetPoints().GetData())
     CenterlineID_for_each_point = numpy_support.vtk_to_numpy(clpd.GetPointData().GetArray('CenterlineId'))
+   
     radii = numpy_support.vtk_to_numpy(clpd.GetPointData().GetArray('MaximumInscribedSphereRadius'))
     n_keys = len(CenterlineID_for_each_point[0])
     line_dict = {}
@@ -300,6 +301,7 @@ def setup_PRED_ROM_parameters(path,model_name,order):
         Params.seg_min_num = 5
         Params.outlet_face_names_file = os.path.join(path,'centerlines_outlets.dat')
         Params.CENTERLINES_OUTLET_FILE_NAME = 'centerlines_outlets.dat'
+        Params.num_time_steps = 6400
         return Params
     elif order == 0:
         Params = Parameters() # put everything is params
@@ -322,7 +324,7 @@ def setup_PRED_ROM_parameters(path,model_name,order):
         Params.seg_min_num = 3
         Params.outlet_face_names_file = os.path.join(path,'centerlines_outlets.dat')
         Params.CENTERLINES_OUTLET_FILE_NAME = 'centerlines_outlets.dat'
-        
+        Params.num_time_steps = 6400
         return Params
 
 def setup_GT_ROM_parameters(path,model_name,order):
@@ -345,6 +347,7 @@ def setup_GT_ROM_parameters(path,model_name,order):
         Params.seg_min_num = 5
         Params.outlet_face_names_file = os.path.join(path,'VMR_centerlines_outlets.dat')
         Params.CENTERLINES_OUTLET_FILE_NAME = 'VMR_centerlines_outlets.dat'
+        Params.num_time_steps = 6400
         return Params
     elif order == 0:
         Params = Parameters() # put everything is params
@@ -367,6 +370,7 @@ def setup_GT_ROM_parameters(path,model_name,order):
         Params.seg_min_num = 3
         Params.outlet_face_names_file = os.path.join(path,'VMR_centerlines_outlets.dat')
         Params.CENTERLINES_OUTLET_FILE_NAME = 'VMR_centerlines_outlets.dat' # for writing out file when extracting cl 
+        Params.num_time_steps = 6400
         return Params
 
 
@@ -600,11 +604,11 @@ def delete_and_rename_inlet_files(pred_caps, gt_caps, input_vtp, tolerance=0.1):
     for path_pred, centroid_pred in centroids_pred.items():
         for path_gt, centroid_gt in centroids_gt.items():
             distance_pred = ((centroid_pred[0] - input_centroid[0]) ** 2 +
-                             (centroid_pred[1] - input_centroid[1]) ** 2 +
-                             (centroid_pred[2] - input_centroid[2]) ** 2) ** 0.5
+                                (centroid_pred[1] - input_centroid[1]) ** 2 +
+                                (centroid_pred[2] - input_centroid[2]) ** 2) ** 0.5
             distance_gt = ((centroid_gt[0] - input_centroid[0]) ** 2 +
-                           (centroid_gt[1] - input_centroid[1]) ** 2 +
-                           (centroid_gt[2] - input_centroid[2]) ** 2) ** 0.5
+                            (centroid_gt[1] - input_centroid[1]) ** 2 +
+                            (centroid_gt[2] - input_centroid[2]) ** 2) ** 0.5
 
             if distance_pred <= tolerance and distance_gt <= tolerance:
                 # Delete the matching file in the gt_caps directory
@@ -1323,6 +1327,26 @@ def get_CenterlineSectionArea_ourway(vmtkclpd,surface_pd):
     return CenterlineSectionArea,lst_too_small,twod_coord_dict,master
 
 
+def create_rcrt_file_for_models_that_dont_have_gt(clpd,save_path,face_name):
+    save_path = os.path.join(save_path,'rcrt.dat')
+    num_caps = len(numpy_support.vtk_to_numpy(clpd.GetPointData().GetArray('CenterlineId'))[0])
+    with open(save_path, 'w') as f:
+        f.write('2\n')
+        
+        for i in range(num_caps):
+            f.write('2\n')
+            f.write(face_name[i]+'\n')
+            f.write('8500\n')
+            f.write('0.00025\n')
+            f.write('8200\n')
+            f.write('0.0 0.0\n')
+            f.write('1.0 0.0\n')
+            
+
+
+
+
+
 def add_attributes(attribute_name,list_to_add,pd):
     # add the list to the polydata
     list_to_add = numpy_support.numpy_to_vtk(list_to_add)
@@ -1351,7 +1375,7 @@ def set_path_name():
     result_master_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\MIROS_paper\\rom_res\\1d_res_seg5_worked'
 
     "path to ur svproject(gt model) folder"
-    svproject_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\MIROS_paper\\rom_sv_projects'
+    svproject_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\MIROS_paper\\rom_sv_projects_no_gt'
 
     'path to ur Numi model folder' 'all file starts with Numi_ then the model name'
     Numi_model_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\MIROS_paper\\rom_Numi_surf'
@@ -1374,6 +1398,12 @@ def main():
         
         # print('debug: filename ' + filename)
         pred_surf_path = os.path.join(Numi_model_path, filename)
+
+        pd = bryan_fillholes(read_surface(pred_surf_path,'vtp',None))
+        write_polydata(pred_surf_path,pd)
+
+
+
         # print('debug: pred_surf_path' + pred_surf_path)
         specific_folder = mkdir(result_master_folder,filename[:-4])
         print(filename)
@@ -1421,7 +1451,7 @@ def main():
         # print('debug: gt_model_path ' + gt_model_path)
         # print('debug: path_to_write ' + path_to_write)
         # print('debug: gt_inflow_pd_path ' + gt_inflow_pd_path)
-
+        
         # boxcut the model
         box_scale = 4
         try:
@@ -1493,6 +1523,7 @@ def main():
     
 
         # renamed inlet and deleted inlet vtp from gt folder
+        # change this tolerace to 0.5
         delete_and_rename_inlet_files(unmatched_pred_cap_path, gt_cap_path, gt_inflow_pd_path, tolerance=0.5)
         move_inflow_and_wall(unmatched_pred_cap_path, boundary_face_path)
         
@@ -1568,7 +1599,7 @@ def main():
             # print('pred surf captures all gt caps! result is given, run martin\'s 1d solver file')
             print('pred surf captures all gt caps! change discretization and re run gt sim') 
             martin_1d_input = os.path.join(martin_1d_input_path, filename[:-4]+'_1d.in')
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
+            #gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
             gtclpd = read_geo(gt_cl_path)
             ##########
             ########## re-setup gt sim with higher num of segments per branch
@@ -1599,6 +1630,10 @@ def main():
 
             # set up gt sim
             gt_sim_boundary_face_path= mkdir(specific_folder,'GT_sim_boundary_faces')
+            # first remove everything in gt_sim_boundary_face_path
+            for i in os.listdir(gt_sim_boundary_face_path):
+                os.remove(os.path.join(gt_sim_boundary_face_path,i))
+
             faceids_to_write = modified_gt_md.get_face_ids()
             faceids_to_write.remove(smallest)
             write_polydata(os.path.join(gt_sim_boundary_face_path, 'wall.vtp'), modified_gt_md.get_face_polydata(smallest))
@@ -1616,15 +1651,26 @@ def main():
                 pd = read_geo(file_path)
                 centroid = compute_polydata_centroid(pd)
                 gt_inlet_centroid_lst.append([i,centroid])
+            
             # now we have a list of all the centroids of the faces in gt_sim_boundary_face_path, find the closest one to gt_inlet_centroid
+            lst_of_distances = []
             for i in gt_inlet_centroid_lst:
                 distance = compute_distance(i[1],gt_inlet_centroid)
-                print('distance between GT/VMR inlet and seqseg inlet is ' + str(distance))
-                if distance < 0.3:
-                    new_path = os.path.join(gt_sim_boundary_face_path, 'inlet.vtp')
-                    os.rename(os.path.join(gt_sim_boundary_face_path,i[0]), new_path)
-                    break
-
+                print('distance between GT/VMR inlet and seqseg cap is ' + str(distance))
+                lst_of_distances.append(distance)
+            # find the closest one and its index
+            min_distance = min(lst_of_distances)
+            index = lst_of_distances.index(min_distance)
+            
+            if min_distance < 1.5:
+                new_path = os.path.join(gt_sim_boundary_face_path, 'inlet.vtp')
+                os.rename(os.path.join(gt_sim_boundary_face_path,gt_inlet_centroid_lst[int(index)][0]), new_path)
+                print('inlet found and renamed to inlet.vtp')
+            else:
+                print('inlet not found in gt_sim_boundary_face_path')
+                edit_log(specific_folder, "inlet not found")
+                continue
+            #pdb.set_trace()
             gt_inflow_directory = mkdir(specific_folder,'gt_inflow_files')
             if os.path.exists(os.path.join(gt_inflow_directory, 'rcrt.dat')):
                 os.remove(os.path.join(gt_inflow_directory, 'rcrt.dat'))
@@ -1633,10 +1679,9 @@ def main():
             copy_file(gt_inflow_file_path, 'inflow_1d.flow', gt_inflow_directory)
             copy_file(gt_inflow_file_path, 'inflow_3d.flow', gt_inflow_directory)
             
-            # form rcrt.dat
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-            GT_Params = setup_GT_ROM_parameters(specific_folder,filename,1)
+            
 
+            GT_Params = setup_GT_ROM_parameters(specific_folder,filename,1)
             GTCl = Centerlines()
             if not os.path.exists(os.path.join(specific_folder, 'extracted_GT_sim_centerlines.vtp')):
                 try:
@@ -1644,33 +1689,46 @@ def main():
                 except:
                     edit_log(specific_folder, "centerline extraction failed!!!")
                     continue
+            else:
+                GTCl.read(GT_Params,os.path.join(specific_folder, 'extracted_GT_sim_centerlines.vtp'))
             # centerline extraction worked!! construct rcrt.dat file!
             gtclpd = read_geo(gt_cl_path) # GET ORIGINAL VMR surf to process bcs
             #pdb.set_trace()
             
-            gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-            master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair) #most important!!
+            # get list of names in gt_sim_boundary_face_path
+            gt_face_names = [i for i in os.listdir(gt_sim_boundary_face_path)]
+            gt_face_names.remove('wall.vtp')
+            gt_face_names.remove('inlet.vtp')
+            for i in range(len(gt_face_names)):
+                gt_face_names[i] = gt_face_names[i][:-4]
+            pdb.set_trace() 
+            # form rcrt.dat
+            create_rcrt_file_for_models_that_dont_have_gt(gtclpd,gt_inflow_directory,gt_face_names)
+            # gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
+            # GT_Params = setup_GT_ROM_parameters(specific_folder,filename,1)
             
-            #>>> master_gt_bc_lst[i][0] is branchid
-            #>>> master_gt_bc_lst[i][1] is RCR_# in martin's solver
-            #>>> master_gt_bc_lst[i][2] is the BOUNDARY CONDITION!!  
-            #>>> master_gt_bc_lst[i][3] is the coordinates of the end points in that branch
-            extracted_gt_cl_pd = read_geo(os.path.join(specific_folder,'extracted_GT_sim_centerlines.vtp'))
+            # # # gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
+            # # # gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
+            # # # master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair) #most important!!
             
-            endpts_for_our_simu = pair_endpts_with_branchid(extracted_gt_cl_pd)
-            #>>> endpts_for_our_simu[i][0] is branchid
-            #>>> endpts_for_our_simu[i][1] is the coordinates of the end points in that branch
-            add_face_name_to_our_sim(endpts_for_our_simu,gt_sim_boundary_face_path)
-            gt_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_our_simu)
-            # pdb.set_trace() 
+            # # # #>>> master_gt_bc_lst[i][0] is branchid
+            # # # #>>> master_gt_bc_lst[i][1] is RCR_# in martin's solver
+            # # # #>>> master_gt_bc_lst[i][2] is the BOUNDARY CONDITION!!  
+            # # # #>>> master_gt_bc_lst[i][3] is the coordinates of the end points in that branch
+            # # # extracted_gt_cl_pd = read_geo(os.path.join(specific_folder,'extracted_GT_sim_centerlines.vtp'))
             
-            write_rcrt_dat_file(gt_inflow_directory,gt_sim_bc_matching_endpts_lst)
+            # # # endpts_for_our_simu = pair_endpts_with_branchid(extracted_gt_cl_pd)
+            # # # #>>> endpts_for_our_simu[i][0] is branchid
+            # # # #>>> endpts_for_our_simu[i][1] is the coordinates of the end points in that branch
+            # # # add_face_name_to_our_sim(endpts_for_our_simu,gt_sim_boundary_face_path)
+            # # # gt_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_our_simu)
+            # # # # pdb.set_trace() 
+            
+            # # # write_rcrt_dat_file(gt_inflow_directory,gt_sim_bc_matching_endpts_lst)
             
             gtmsh = mesh.Mesh()
-            
             gtmsh.generate(GT_Params,GTCl) 
-            reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'GT_1d_solver_output.in'))
+            #reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'GT_1d_solver_output.in'))
             gt_input_file_path = os.path.join(specific_folder,'GT_1d_solver_output.in')
 
             # uncomment the following
@@ -1693,9 +1751,9 @@ def main():
             gtmsh_0D.set_outlet_face_names(Params_0D)
             gtmsh_0D.outlet_face_names_file = os.path.join(specific_folder,'VMR_centerlines_outlets.dat')
             gtmsh_0D.generate(Params_0D,GTCl)
-            martin_0d_input_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_0d'
-            martin_0d_input = os.path.join(martin_0d_input_path, filename[:-4]+'_0d.in')
-            reparse_solver_input_use_martins_0d(martin_0d_input, os.path.join(specific_folder,'GT_0d_solver_output.json'))
+            #martin_0d_input_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_0d'
+            #martin_0d_input = os.path.join(martin_0d_input_path, filename[:-4]+'_0d.in')
+            #reparse_solver_input_use_martins_0d(martin_0d_input, os.path.join(specific_folder,'GT_0d_solver_output.json'))
             
 
             ##################
@@ -1748,14 +1806,25 @@ def main():
                 pd = read_geo(file_path)
                 centroid = compute_polydata_centroid(pd)
                 gt_inlet_centroid_lst.append([i,centroid])
+            
             # now we have a list of all the centroids of the faces in gt_sim_boundary_face_path, find the closest one to gt_inlet_centroid
+            lst_of_distances = []
             for i in gt_inlet_centroid_lst:
                 distance = compute_distance(i[1],gt_inlet_centroid)
-                print(distance)
-                if distance < 0.3:
-                    new_path = os.path.join(gt_sim_boundary_face_path, 'inlet.vtp')
-                    os.rename(os.path.join(gt_sim_boundary_face_path,i[0]), new_path)
-                    break
+                print('distance between GT/VMR inlet and seqseg cap is ' + str(distance))
+                lst_of_distances.append(distance)
+            # find the closest one and its index
+            min_distance = min(lst_of_distances)
+            index = lst_of_distances.index(min_distance)
+            
+            if min_distance < 1.5:
+                new_path = os.path.join(gt_sim_boundary_face_path, 'inlet.vtp')
+                os.rename(os.path.join(gt_sim_boundary_face_path,gt_inlet_centroid_lst[int(index)][0]), new_path)
+                print('inlet found and renamed to inlet.vtp')
+            else:
+                print('inlet not found in gt_sim_boundary_face_path')
+                edit_log(specific_folder, "inlet not found")
+                continue
 
             gt_inflow_directory = mkdir(specific_folder,'gt_inflow_files')
             if os.path.exists(os.path.join(gt_inflow_directory, 'rcrt.dat')):
@@ -1765,8 +1834,8 @@ def main():
             copy_file(gt_inflow_file_path, 'inflow_3d.flow', gt_inflow_directory)
 
             # form rcrt.dat
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-
+            #gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
+            #pdb.set_trace()
             
             GT_Params = setup_GT_ROM_parameters(specific_folder,filename,1)
 
@@ -1800,29 +1869,36 @@ def main():
             #pdb.set_trace()
             # centerline extraction worked!! construct rcrt.dat file!
             gtclpd = read_geo(gt_cl_path)
-            gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
+            gt_face_names = [i for i in os.listdir(gt_sim_boundary_face_path)]
+            gt_face_names.remove('wall.vtp')
+            gt_face_names.remove('inlet.vtp')
+            for i in range(len(gt_face_names)):
+                gt_face_names[i] = gt_face_names[i][:-4]
+            pdb.set_trace()
+            create_rcrt_file_for_models_that_dont_have_gt(gtclpd,gt_inflow_directory,gt_face_names)
+            # # # gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
             
-            gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-            master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair) #most important!!
+            # # # gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
+            # # # master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair) #most important!!
 
-            #>>> master_gt_bc_lst[i][0] is branchid
-            #>>> master_gt_bc_lst[i][1] is RCR_# in martin's solver
-            #>>> master_gt_bc_lst[i][2] is the BOUNDARY CONDITION!!  
-            #>>> master_gt_bc_lst[i][3] is the coordinates of the end points in that branch
-            endpts_for_our_simu = pair_endpts_with_branchid(extracted_gt_cl_pd)
-            #>>> endpts_for_our_simu[i][0] is branchid
-            #>>> endpts_for_our_simu[i][1] is the coordinates of the end points in that branch
-            add_face_name_to_our_sim(endpts_for_our_simu,gt_sim_boundary_face_path)
-            gt_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_our_simu)
-            # pdb.set_trace() 
+            # # # #>>> master_gt_bc_lst[i][0] is branchid
+            # # # #>>> master_gt_bc_lst[i][1] is RCR_# in martin's solver
+            # # # #>>> master_gt_bc_lst[i][2] is the BOUNDARY CONDITION!!  
+            # # # #>>> master_gt_bc_lst[i][3] is the coordinates of the end points in that branch
+            # # # endpts_for_our_simu = pair_endpts_with_branchid(extracted_gt_cl_pd)
+            # # # #>>> endpts_for_our_simu[i][0] is branchid
+            # # # #>>> endpts_for_our_simu[i][1] is the coordinates of the end points in that branch
+            # # # add_face_name_to_our_sim(endpts_for_our_simu,gt_sim_boundary_face_path)
+            # # # gt_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_our_simu)
+            # # # # pdb.set_trace() 
             
-            write_rcrt_dat_file(gt_inflow_directory,gt_sim_bc_matching_endpts_lst)
+            # # # write_rcrt_dat_file(gt_inflow_directory,gt_sim_bc_matching_endpts_lst)
             
-            gtmsh = mesh.Mesh()
-            gtmsh.outlet_face_names_file = os.path.join(specific_folder,'centerline_outlets.dat')
+                
+            #gtmsh.outlet_face_names_file = os.path.join(specific_folder,'centerline_outlets.dat')
             
             gtmsh.generate(GT_Params,Cl) 
-            reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'GT_1d_solver_output.in'))
+            #reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'GT_1d_solver_output.in'))
             gt_input_file_path = os.path.join(specific_folder,'GT_1d_solver_output.in')
             
             # uncomment the following
@@ -1849,7 +1925,7 @@ def main():
             gtmsh_0D.generate(Params_0D,Cl)
             martin_0d_input_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_0d'
             martin_0d_input = os.path.join(martin_0d_input_path, filename[:-4]+'_0d.in')
-            reparse_solver_input_use_martins_0d(martin_0d_input, os.path.join(specific_folder,'GT_0d_solver_output.json'))
+            #reparse_solver_input_use_martins_0d(martin_0d_input, os.path.join(specific_folder,'GT_0d_solver_output.json'))
             
                 
             
@@ -1909,9 +1985,10 @@ def main():
         delete_everything(gt_cap_path)
         gt_cap_path = write_gt_caps(specific_folder,gt_model_path)
         rename_highest_points_vtp(boundary_faces_for_final_geo_not_for_simulation_path)
-        delete_and_rename_inlet_files(boundary_faces_for_final_geo_not_for_simulation_path, gt_cap_path, gt_inflow_pd_path, tolerance=0.5)
+        pdb.set_trace()
+        delete_and_rename_inlet_files(boundary_faces_for_final_geo_not_for_simulation_path, gt_cap_path, gt_inflow_pd_path, tolerance=1.5)
         move_inflow_and_wall(boundary_faces_for_final_geo_not_for_simulation_path, boundary_face_path)
-        matched_caps_lst, unmatched_files_b_list = match_files(gt_cap_path,boundary_faces_for_final_geo_not_for_simulation_path, tolerance=0.5)
+        matched_caps_lst, unmatched_files_b_list = match_files(gt_cap_path,boundary_faces_for_final_geo_not_for_simulation_path, tolerance=1.5)
         # >>>[[(vtkCommonDataModelPython.vtkPolyData)0000025E7F6BD8E8, (vtkCommonDataModelPython.vtkPolyData)0000025E7F6BD888], ...]
         
         write_ordered_cap_for_pred_simulation(boundary_face_path, matched_caps_lst)
@@ -2007,20 +2084,27 @@ def main():
 
         # Prepare inflow.dat file for OneD simulation
         #pdb.set_trace()
-        gt_endpt_branchid_pair = []
-        gt_bc_pair = []
-        master_gt_bc_lst = []
-        pred_endpt_branchid_pair = []
-        endpts_for_pred_simu = []
-        pred_sim_bc_matching_endpts_lst = []
-        gtclpd = read_geo(gt_cl_path)
-        gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
-        gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
-        master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair) #most important!!
-        pred_endpt_branchid_pair = pair_endpts_with_branchid(extracted_pred_cl_pd)
-        endpts_for_pred_simu = add_face_name_to_our_sim(pred_endpt_branchid_pair,boundary_face_path)
-        pred_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_pred_simu)
-        write_rcrt_dat_file(pred_inflow_directory,pred_sim_bc_matching_endpts_lst)
+        pred_face_names = [f for f in os.listdir(boundary_face_path) if os.path.isfile(os.path.join(boundary_face_path, f))]
+        pred_face_names.remove('wall.vtp')
+        pred_face_names.remove('inlet.vtp')
+        for i in range(len(pred_face_names)):
+            pred_face_names[i] = pred_face_names[i][:-4]
+
+        create_rcrt_file_for_models_that_dont_have_gt(extracted_pred_cl_pd,pred_inflow_directory,pred_face_names)
+        # # # gt_endpt_branchid_pair = []
+        # # # gt_bc_pair = []
+        # # # master_gt_bc_lst = []
+        # # # pred_endpt_branchid_pair = []
+        # # # endpts_for_pred_simu = []
+        # # # pred_sim_bc_matching_endpts_lst = []
+        # # # gtclpd = read_geo(gt_cl_path)
+        # # # gt_endpt_branchid_pair = pair_endpts_with_branchid(gtclpd)
+        # # # gt_bc_pair = pair_gt_bc_with_branch_id(martin_1d_input)
+        # # # master_gt_bc_lst = master_bc_list(gt_bc_pair,gt_endpt_branchid_pair) #most important!!
+        # # # pred_endpt_branchid_pair = pair_endpts_with_branchid(extracted_pred_cl_pd)
+        # # # endpts_for_pred_simu = add_face_name_to_our_sim(pred_endpt_branchid_pair,boundary_face_path)
+        # # # pred_sim_bc_matching_endpts_lst = attach_rcr_to_simulation_enpts(master_gt_bc_lst,endpts_for_pred_simu)
+        # # # write_rcrt_dat_file(pred_inflow_directory,pred_sim_bc_matching_endpts_lst)
         #pdb.set_trace()
         msh = mesh.Mesh()
         msh.outlet_face_names_file = os.path.join(specific_folder,'centerline_outlets.dat')
@@ -2030,7 +2114,7 @@ def main():
         
         # # parse solver input file so that it matches with Martin's
         martin_1d_input = os.path.join(martin_1d_input_path, filename[:-4]+'_1d.in')
-        reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'PRED_1d_solver_output.in'))
+        #reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'PRED_1d_solver_output.in'))
 
 
         # get 0D solver input file first before running 1D
@@ -2042,9 +2126,9 @@ def main():
         predmsh_0D.set_outlet_face_names(Params_0D)
         predmsh_0D.outlet_face_names_file = os.path.join(specific_folder,'VMR_centerlines_outlets.dat')
         predmsh_0D.generate(Params_0D,Cl)
-        martin_0d_input_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_0d'
-        martin_0d_input = os.path.join(martin_0d_input_path, filename[:-4]+'_0d.in')
-        reparse_solver_input_use_martins_0d(martin_0d_input, os.path.join(specific_folder,'PRED_0d_solver_output.json'))
+        # martin_0d_input_path = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\Martin_result\\input_0d'
+        # martin_0d_input = os.path.join(martin_0d_input_path, filename[:-4]+'_0d.in')
+        # reparse_solver_input_use_martins_0d(martin_0d_input, os.path.join(specific_folder,'PRED_0d_solver_output.json'))
             
 
 
@@ -2080,7 +2164,7 @@ def main():
                 PRED_Params.seg_min_num = PRED_Params.seg_min_num + 2
                 print('seg_min_num is ' + str(PRED_Params.seg_min_num))
                 msh.generate(PRED_Params,Cl)
-                reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'PRED_1d_solver_output.in'))
+                #reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'PRED_1d_solver_output.in'))
                 run_1d_simulation(os.path.join(specific_folder,'PRED_1d_solver_output.in'))
                 #pdb.set_trace()
                 if len([f for f in os.listdir(OneD_result_path) if os.path.isfile(os.path.join(OneD_result_path, f))]) > 2:
@@ -2096,7 +2180,7 @@ def main():
         extracted_gt_cl_pd_path = os.path.join(specific_folder,'extracted_GT_sim_centerlines.vtp')
         GTCl.read(Params_0D,extracted_gt_cl_pd_path)
         gtmsh.generate(GT_Params,GTCl)
-        reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'GT_1d_solver_output.in'))
+        #reparse_solver_input_use_martins(martin_1d_input, os.path.join(specific_folder,'GT_1d_solver_output.in'))
         run_1d_simulation(os.path.join(specific_folder,'GT_1d_solver_output.in'))
         gt_res_path = mkdir(specific_folder,'gt_1d_results')
         move_all_except(OneDSolver_folder_path, gt_res_path)

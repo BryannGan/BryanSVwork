@@ -877,8 +877,8 @@ def plot_flow_in_every_branch_of_last_cycle(pred_avg_flow_last_cycle, filename, 
         for i in range(len(pred_avg_flow_last_cycle)):
             print('plotting flow branch ' + str(i))
             plt.figure()  # Create a new figure for each branch
-            plt.plot(pred_avg_flow_last_cycle[i], label='MIROS branch ' + str(i), linewidth=6)
-            plt.plot(gt_avg_flow_last_cycle[i], label='VMR branch ' + str(i), linewidth=6)
+            plt.plot(pred_avg_flow_last_cycle[i], label='MIROS outlet ' + str(i), linewidth=6)
+            plt.plot(gt_avg_flow_last_cycle[i], label='VMR outlet ' + str(i), linewidth=6)
             plt.legend(fontsize=20)
             plt.title(str(filename) + ' Flow vs Time')
             plt.xlabel('Time (ms)')
@@ -892,6 +892,8 @@ def plot_pressure_in_every_branch_of_last_cycle(pred_avg_pressure_last_cycle, fi
     if gt_avg_pressure_last_cycle is None:
         for i in range(len(pred_avg_pressure_last_cycle)):
             plt.figure()  # Create a new figure for each branch
+            # convert pred_avg_pressure_last_cycle to mmHg from dyne/cm2
+            pred_avg_pressure_last_cycle[i] = pred_avg_pressure_last_cycle[i] / 1333.22
             plt.plot(pred_avg_pressure_last_cycle[i], label='branch ' + str(i), linewidth=6)
             plt.legend()
             plt.title(str(filename) + ' Pressure vs Time')
@@ -905,8 +907,10 @@ def plot_pressure_in_every_branch_of_last_cycle(pred_avg_pressure_last_cycle, fi
         for i in range(len(pred_avg_pressure_last_cycle)):
             print('plotting pressure branch ' + str(i))
             plt.figure()  # Create a new figure for each branch
-            plt.plot(pred_avg_pressure_last_cycle[i], label='MIROS branch ' + str(i), linewidth=6)
-            plt.plot(gt_avg_pressure_last_cycle[i], label='VMR branch ' + str(i), linewidth=6)
+            # convert pred_avg_pressure_last_cycle to mmHg from dyne/cm2
+            pred_avg_pressure_last_cycle[i] = pred_avg_pressure_last_cycle[i] / 1333.22
+            plt.plot(pred_avg_pressure_last_cycle[i], label='MIROS outlet ' + str(i), linewidth=6)
+            plt.plot(gt_avg_pressure_last_cycle[i], label='VMR outlet ' + str(i), linewidth=6)
             plt.legend(fontsize=20)
             plt.title(str(filename) + ' Pressure vs Time')
             plt.xlabel('Time (ms)')
@@ -932,8 +936,8 @@ def plot_wss_in_every_branch_of_last_cycle(pred_avg_wss_last_cycle, filename, sa
         for i in range(len(pred_avg_wss_last_cycle)):
             print('plotting wss branch ' + str(i))
             plt.figure()  # Create a new figure for each branch
-            plt.plot(pred_avg_wss_last_cycle[i], label='MIROS branch ' + str(i), linewidth=6)
-            plt.plot(gt_avg_wss_last_cycle[i], label='VMR branch ' + str(i), linewidth=6)
+            plt.plot(pred_avg_wss_last_cycle[i], label='MIROS outlet ' + str(i), linewidth=6)
+            plt.plot(gt_avg_wss_last_cycle[i], label='VMR outlet ' + str(i), linewidth=6)
             plt.legend(fontsize=20)
             plt.title(str(filename) + ' WSS vs Time')
             plt.xlabel('Time (ms)')
@@ -959,8 +963,8 @@ def plot_Re_in_every_branch_of_last_cycle(pred_avg_Re_last_cycle, filename, save
         for i in range(len(pred_avg_Re_last_cycle)):
             print('plotting Re branch ' + str(i))
             plt.figure()  # Create a new figure for each branch
-            plt.plot(pred_avg_Re_last_cycle[i], label='MIROS branch ' + str(i), linewidth=6)
-            plt.plot(gt_avg_Re_last_cycle[i], label='VMR branch ' + str(i), linewidth=6)
+            plt.plot(pred_avg_Re_last_cycle[i], label='MIROS outlet ' + str(i), linewidth=6)
+            plt.plot(gt_avg_Re_last_cycle[i], label='VMR outlet ' + str(i), linewidth=6)
             plt.legend(fontsize=20)
             plt.title(str(filename) + ' Re vs Time')
             plt.xlabel('Time (ms)')
@@ -986,8 +990,8 @@ def plot_area_in_every_branch_of_last_cycle(pred_avg_area_last_cycle, filename, 
         for i in range(len(pred_avg_area_last_cycle)):
             print('plotting area branch ' + str(i))
             plt.figure()  # Create a new figure for each branch
-            plt.plot(pred_avg_area_last_cycle[i], label='MIROS branch ' + str(i), linewidth=6)
-            plt.plot(gt_avg_area_last_cycle[i], label='VMR branch ' + str(i), linewidth=6)
+            plt.plot(pred_avg_area_last_cycle[i], label='MIROS outlet ' + str(i), linewidth=6)
+            plt.plot(gt_avg_area_last_cycle[i], label='VMR outlet ' + str(i), linewidth=6)
             plt.legend(fontsize=20)
             plt.title(str(filename) + ' Area vs Time')
             plt.xlabel('Time (ms)')
@@ -995,66 +999,136 @@ def plot_area_in_every_branch_of_last_cycle(pred_avg_area_last_cycle, filename, 
             plt.savefig(save_res_folder + '\\' + str(filename) + '_branch_' + str(i) + '_Area_vs_Time.png')
             plt.close()  # Close the figure to avoid stacking
 
+def create_flow_box_plot(lst_of_data, save_res_folder, order):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import os
 
-def create_flow_box_plot(lst_of_data, save_res_folder,order):
+    # Sort the list of data by model name
+    lst_of_data = sorted(lst_of_data, key=lambda x: x[0])  # Sort by model name
+
+    # Prepare the mapping file
+    mapping_file_path = os.path.join(save_res_folder, "flow_model_mapping.txt")
+    with open(mapping_file_path, "w") as f:
+        for idx, (model_name, _) in enumerate(lst_of_data, start=1):
+            f.write(f"{idx}: {model_name}\n")
+    print(f"Flow model mapping written to: {mapping_file_path}")
+
     # Prepare the data for plotting
-     # Prepare the data for plotting
     plt.figure()
     plot_data = []
     labels = []
     counts = []  # To store the counts of errors per model
-    for model, errors_dict in lst_of_data:
+
+    # Generate numeric labels (1, 2, ..., n)
+    numeric_labels = range(1, len(lst_of_data) + 1)
+
+    for idx, (model, errors_dict) in enumerate(lst_of_data):
         errors = list(errors_dict.values())  # Extract the error percentages from the dictionary
         plot_data.extend(errors)
-        labels.extend([model] * len(errors))
+        labels.extend([numeric_labels[idx]] * len(errors))  # Use numeric label instead of model name
         counts.append(len(errors))  # Keep track of the number of data points for each model
 
     # Create the boxplot
     ax = sns.boxplot(x=labels, y=plot_data)
-    plt.xlabel('Model Name')
+    plt.xlabel('Model Index')
     plt.ylabel('Relative Error %')
     if order == '1d':
         plt.title('Box Plot of 1D Model Flow Errors')
     else:
         plt.title('Box Plot of 0D Model Flow Errors')
-    plt.xticks(rotation=45)  # Rotating the x-axis labels for better readability
+    #plt.xticks(rotation=45)  # Rotating the x-axis labels for better readability
+
     for i, count in enumerate(counts):
         # Place the text at the mean y-position of the last 'count' points
         y_pos = sum(plot_data[i*count:(i+1)*count]) / count
         ax.text(i, y_pos, f'n={count}', horizontalalignment='center', size='x-small', color='black', weight='semibold')
 
-    #plt.show()
-    plt.savefig(save_res_folder + '\\flow_box_plot.png')
+    # Save the figure
+    output_path = os.path.join(save_res_folder, "flow_box_plot.png")
+    plt.savefig(output_path)
+    plt.close()
+    print(f"Flow box plot saved to: {output_path}")
 
-def create_pressure_box_plot(lst_of_data,save_res_folder,order):
+
+# def create_pressure_box_plot(lst_of_data,save_res_folder,order):
+#     # Prepare the data for plotting
+#     plt.figure()
+#     plot_data = []
+#     labels = []
+#     counts = []  # To store the counts of errors per model
+#     for model, errors_dict in lst_of_data:
+#         errors = list(errors_dict.values())  # Extract the error percentages from the dictionary
+#         plot_data.extend(errors)
+#         labels.extend([model] * len(errors))
+#         counts.append(len(errors))  # Keep track of the number of data points for each model
+
+#     # Create the boxplot
+#     ax = sns.boxplot(x=labels, y=plot_data)
+#     plt.xlabel('Model Name')
+#     plt.ylabel('Relative Error %')
+#     if order == '1d':
+#         plt.title('Box Plot of 1D Model Pressure Errors')
+#     else:
+#         plt.title('Box Plot of 0D Model Pressure Errors')
+#     plt.xticks(rotation=45)  # Rotating the x-axis labels for better readability
+#     for i, count in enumerate(counts):
+#         # Place the text at the mean y-position of the last 'count' points
+#         y_pos = sum(plot_data[i*count:(i+1)*count]) / count
+#         ax.text(i, y_pos, f'n={count}', horizontalalignment='center', size='x-small', color='black', weight='semibold')
+
+#     #plt.show()
+#     plt.savefig(save_res_folder + '\\pressure_box_plot.png')
+def create_pressure_box_plot(lst_of_data, save_res_folder, order):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import os
+
+    # Sort the list of data by model name
+    lst_of_data = sorted(lst_of_data, key=lambda x: x[0])  # Sort by model name
+
+    # Prepare the mapping file
+    mapping_file_path = os.path.join(save_res_folder, "pressure_model_mapping.txt")
+    with open(mapping_file_path, "w") as f:
+        for idx, (model_name, _) in enumerate(lst_of_data, start=1):
+            f.write(f"{idx}: {model_name}\n")
+    print(f"Pressure model mapping written to: {mapping_file_path}")
+
     # Prepare the data for plotting
     plt.figure()
     plot_data = []
     labels = []
     counts = []  # To store the counts of errors per model
-    for model, errors_dict in lst_of_data:
+
+    # Generate numeric labels (1, 2, ..., n)
+    numeric_labels = range(1, len(lst_of_data) + 1)
+
+    for idx, (model, errors_dict) in enumerate(lst_of_data):
         errors = list(errors_dict.values())  # Extract the error percentages from the dictionary
         plot_data.extend(errors)
-        labels.extend([model] * len(errors))
+        labels.extend([numeric_labels[idx]] * len(errors))  # Use numeric label instead of model name
         counts.append(len(errors))  # Keep track of the number of data points for each model
 
     # Create the boxplot
     ax = sns.boxplot(x=labels, y=plot_data)
-    plt.xlabel('Model Name')
+    plt.xlabel('Model Index')
     plt.ylabel('Relative Error %')
     if order == '1d':
-        plt.title('Box Plot of 0D Model Pressure Errors')
+        plt.title('Box Plot of 1D Model Pressure Errors')
     else:
         plt.title('Box Plot of 0D Model Pressure Errors')
-    plt.xticks(rotation=45)  # Rotating the x-axis labels for better readability
+    #plt.xticks(rotation=45)  # Rotating the x-axis labels for better readability
+
     for i, count in enumerate(counts):
         # Place the text at the mean y-position of the last 'count' points
         y_pos = sum(plot_data[i*count:(i+1)*count]) / count
         ax.text(i, y_pos, f'n={count}', horizontalalignment='center', size='x-small', color='black', weight='semibold')
 
-    #plt.show()
-    plt.savefig(save_res_folder + '\\pressure_box_plot.png')
-
+    # Save the figure
+    output_path = os.path.join(save_res_folder, "pressure_box_plot.png")
+    plt.savefig(output_path)
+    plt.close()
+    print(f"Pressure box plot saved to: {output_path}")
 
 import os
 
@@ -1100,40 +1174,85 @@ def get_pressure_png_paths(folder_path):
     
     return paths
 
-def display_multiple_figures_from_paths(paths,save_res_folder, title="Multi-Figure Display", comment=None):
+# def display_multiple_figures_from_paths(paths,save_res_folder, title="Multi-Figure Display", comment=None):
+#     """
+#     Displays multiple figures side by side in a grid layout using a list of image paths, with an optional comment.
+    
+#     Parameters:
+#     - paths: list of str, paths to saved figure image files
+#     - title: str, optional, the title for the display window
+#     - comment: str, optional, a line of text to display at the bottom of the figure
+#     """
+#     n = len(paths)
+#     rows = int(n**0.5)
+#     cols = (n + rows - 1) // rows
+
+#     fig, axs = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4))
+#     fig.suptitle(title, fontsize=16)
+
+#     axs = axs.ravel() if isinstance(axs, np.ndarray) else [axs]
+
+#     for i, ax in enumerate(axs):
+#         if i < n:
+#             img = plt.imread(paths[i])  # Load image from path
+#             ax.imshow(img)
+#             ax.axis('off')
+#         else:
+#             ax.axis('off')
+    
+#     # Add comment at the bottom if provided
+#     if comment:
+#         fig.text(0.5, 0.02, comment, ha='center', fontsize=12, color='gray')
+
+#     plt.tight_layout()
+#     plt.subplots_adjust(bottom=0.15)  # Adjust bottom margin to fit comment
+#     #plt.show()
+#     plt.savefig(save_res_folder + '\\' + title + '.png')
+def display_multiple_figures_from_paths(paths, save_res_folder, title="Multi-Figure Display", comment=None, figure_size=(12, 8)):
     """
-    Displays multiple figures side by side in a grid layout using a list of image paths, with an optional comment.
+    Displays multiple figures side by side in a grid layout using a list of image paths, ensuring uniform figure dimensions.
     
     Parameters:
     - paths: list of str, paths to saved figure image files
+    - save_res_folder: str, path to save the final combined figure
     - title: str, optional, the title for the display window
     - comment: str, optional, a line of text to display at the bottom of the figure
+    - figure_size: tuple, optional, size of the figure in inches (width, height)
     """
     n = len(paths)
-    rows = int(n**0.5)
-    cols = (n + rows - 1) // rows
+    cols = int(np.ceil(np.sqrt(n)))  # Number of columns
+    rows = int(np.ceil(n / cols))   # Number of rows
 
-    fig, axs = plt.subplots(rows, cols, figsize=(cols * 4, rows * 4))
+    fig, axs = plt.subplots(rows, cols, figsize=figure_size)
     fig.suptitle(title, fontsize=16)
 
+    # Flatten the axes for consistent indexing
     axs = axs.ravel() if isinstance(axs, np.ndarray) else [axs]
 
     for i, ax in enumerate(axs):
-        if i < n:
-            img = plt.imread(paths[i])  # Load image from path
-            ax.imshow(img)
+        if i < n:  # Only process up to the number of paths
+            try:
+                img = plt.imread(paths[i])  # Load image from path
+                ax.imshow(img)
+                ax.axis('off')
+            except Exception as e:
+                ax.text(0.5, 0.5, "Error loading image", ha='center', va='center', fontsize=12)
+                ax.axis('off')
+        else:  # Hide unused axes explicitly
             ax.axis('off')
-        else:
-            ax.axis('off')
-    
+
     # Add comment at the bottom if provided
     if comment:
-        fig.text(0.5, 0.02, comment, ha='center', fontsize=12, color='gray')
+        fig.text(0.5, 0.01, comment, ha='center', fontsize=12, color='gray')
 
-    plt.tight_layout()
-    plt.subplots_adjust(bottom=0.15)  # Adjust bottom margin to fit comment
-    #plt.show()
-    plt.savefig(save_res_folder + '\\' + title + '.png')
+    # Adjust layout to prevent overlap
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Leave space for the title and comment
+
+    # Save the figure
+    output_path = os.path.join(save_res_folder, f"{title}.png")
+    plt.savefig(output_path, dpi=300)  # Save with consistent resolution
+    plt.close(fig)
+    print(f"Combined figure saved to: {output_path}")
 
 
 def find_mapping_of_branchid(ourcl, vmrcl):
@@ -1356,8 +1475,9 @@ def analyze_1d():
     result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path = set_path_name()
     box_plot_flow_data = []
     box_plot_pressure_data = []
-    extraction_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\MIROS_paper\\rom_res\\1d_res_seg5_worked\\done'
+    extraction_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\MIROS_paper\\rom_res\\1d_res_seg5_worked\\done\\1d_all_res'
     for filename in os.listdir(extraction_folder):
+        
         model_master_folder = os.path.join(extraction_folder,filename)
         gt_res_folder = os.path.join(model_master_folder,'gt_1d_results')
         pred_res_folder = os.path.join(model_master_folder,'pred_1d_results')
@@ -1385,26 +1505,37 @@ def analyze_1d():
             pred_res = read_results_1d(pred_res_folder)
             gt_res = read_results_1d(gt_res_folder)
 
+            if filename[0:8] == 'clipped_':
+                model_name = filename[8:]
+            elif filename[0:9] == "smoothed_":
+                model_name = filename[9:]
+            else:
+                model_name = filename
+
 
             ### add function to parse # of cycle
-            if filename == '0063_1001':
+            if model_name == '0063_1001':
                 cycle = 9
-            elif filename == '0090_0001':
+            elif model_name == '0090_0001':
                 cycle = 7
-            elif filename == '0131_0000':
+            elif model_name == '0131_0000':
                 cycle = 14
-            elif filename == '0146_1001':
+            elif model_name == '0146_1001':
                 cycle = 8
-            elif filename == '0176_0000':
+            elif model_name == '0176_0000':
                 cycle = 8
-            elif filename == '0174_0000':
+            elif model_name == '0174_0000':
                 cycle = 16
-            elif filename == '0006_0001':
+            elif model_name == '0006_0001':
                 cycle = 23
-            elif filename == '0070_0001':
+            elif model_name == '0070_0001':
                 cycle = 24
+            elif model_name == '0139_1001':
+                cycle = 9
+            elif model_name == '0141_1001':
+                cycle = 8   
             else:
-                cycle = 6
+                cycle = 8
 
 
             #pdb.set_trace()
@@ -1571,17 +1702,19 @@ def analyze_0d():
     # result_master_folder, svproject_path, Numi_model_path, gt_cl_path, martin_1d_input_path = set_path_name()
     box_plot_flow_data = []
     box_plot_pressure_data = []
-    extraction_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\MIROS_paper\\rom_res\\0d_res_seg3_worked\\done'
+    extraction_folder = 'C:\\Users\\bygan\\Documents\\Research_at_Cal\\Shadden_lab_w_Numi\\MIROS_paper\\rom_res\\0d_res_seg3_worked\\done\\0d_all_res'
     for filename in os.listdir(extraction_folder):
+        
         model_master_folder = os.path.join(extraction_folder,filename)
         print(model_master_folder)
+       
         pred_cl_path = os.path.join(model_master_folder,'extracted_pred_centerlines.vtp')
         gt_extracted_cl_path = os.path.join(model_master_folder,'extracted_GT_sim_centerlines.vtp')
         if not os.path.exists(gt_extracted_cl_path):
             gt_cl_path = gt_cl_path
         else:
             gt_cl_path = gt_extracted_cl_path
-
+        #pdb.set_trace()
         mapping = find_mapping_of_branchid(read_polydata(pred_cl_path), read_polydata(gt_cl_path))
         
         gt_res = os.path.join(model_master_folder,'GT_0d_solver_output_branch_results.npy')
@@ -1592,26 +1725,40 @@ def analyze_0d():
             gt_res = read_0d_res(gt_res)
         else: 
             continue
+        
+        if filename[0:8] == 'clipped_':
+            model_name = filename[8:]
+        elif filename[0:9] == "smoothed_":
+            model_name = filename[9:]
+        elif filename[0:7] == "manual_":
+            model_name = filename[7:]
+        else:
+            model_name = filename
+
 
         ### add function to parse # of cycle
-        if filename == '0063_1001':
+        if model_name == '0063_1001':
             cycle = 9
-        elif filename == '0090_0001':
+        elif model_name == '0090_0001':
             cycle = 7
-        elif filename == '0131_0000':
+        elif model_name == '0131_0000':
             cycle = 14
-        elif filename == '0146_1001':
+        elif model_name == '0146_1001':
             cycle = 8
-        elif filename == '0176_0000':
+        elif model_name == '0176_0000':
             cycle = 8
-        elif filename == '0174_0000':
+        elif model_name == '0174_0000':
             cycle = 16
-        elif filename == '0006_0001':
+        elif model_name == '0006_0001':
             cycle = 23
-        elif filename == '0070_0001':
+        elif model_name == '0070_0001':
             cycle = 24
+        elif model_name == '0139_1001':
+            cycle = 9
+        elif model_name == '0141_1001':
+            cycle = 8   
         else:
-            cycle = 6
+            cycle = 8
 
         
         flow_last_cycle, avg_flow_per_branch_last_cycle, avg_flow_last_seg_last_cycle = get_0D_avg_flow_on_branch_over_time(pred_res,cycle)
@@ -1670,16 +1817,16 @@ def analyze_0d():
         for key in rel_error_mean_pressure_branch:
             rel_error_mean_pressure_branch[key]*=100
 
-
+        print(filename)
         box_plot_flow_data.append([filename, rel_error_mean_flow_branch])
         box_plot_pressure_data.append([filename, rel_error_mean_pressure_branch])
         
 
 
-
+       
         plot_flow_in_every_branch_of_last_cycle(avg_flow_last_seg_last_cycle,filename, save_res_folder,gt_avg_flow_last_seg_last_cycle)
         plot_pressure_in_every_branch_of_last_cycle(avg_pressure_last_seg_last_cycle,filename,save_res_folder, gt_avg_pressure_last_seg_last_cycle)
-        
+       
         flow_png = get_flow_png_paths(save_res_folder)
         pressure_png = get_pressure_png_paths(save_res_folder)
         
@@ -1690,7 +1837,7 @@ def analyze_0d():
         
         display_multiple_figures_from_paths(flow_png, save_res_folder, title="0D Flow Results "+filename,comment = flow_comment)
         display_multiple_figures_from_paths(pressure_png,save_res_folder, title="0D Pressure Results "+filename,comment = pressure_comment)
-
+        print(filename+' done ------------------------------!')
 
     create_flow_box_plot(box_plot_flow_data,extraction_folder,'0d')
     create_pressure_box_plot(box_plot_pressure_data,extraction_folder,'0d')
@@ -1701,7 +1848,7 @@ def analyze_0d():
 
 
 if __name__ == '__main__':
-    #analyze_1d()
+    analyze_1d()
     analyze_0d()
 
 
